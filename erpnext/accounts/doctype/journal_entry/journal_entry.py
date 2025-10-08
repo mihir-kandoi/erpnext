@@ -444,6 +444,10 @@ class JournalEntry(AccountsController):
 		for d in to_remove:
 			self.remove(d)
 
+		self.set_amounts_in_company_currency()
+		self.set_total_debit_credit()
+		self.set_against_account()
+
 	def update_asset_value(self):
 		self.update_asset_on_depreciation()
 		self.update_asset_on_disposal()
