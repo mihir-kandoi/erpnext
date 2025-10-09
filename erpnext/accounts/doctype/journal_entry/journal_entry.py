@@ -33,6 +33,7 @@ from erpnext.assets.doctype.asset_depreciation_schedule.asset_depreciation_sched
 	get_depr_schedule,
 )
 from erpnext.controllers.accounts_controller import AccountsController
+from erpnext.setup.utils import get_exchange_rate as _get_exchange_rate
 
 
 class StockAccountInvalidTransaction(frappe.ValidationError):
@@ -354,7 +355,6 @@ class JournalEntry(AccountsController):
 
 	def apply_tax_withholding(self):
 		from erpnext.accounts.report.general_ledger.general_ledger import get_account_type_map
-		from erpnext.setup.utils import get_exchange_rate
 
 		if not self.apply_tds or self.voucher_type not in ("Debit Note", "Credit Note"):
 			return
@@ -421,7 +421,7 @@ class JournalEntry(AccountsController):
 		acc_curr = get_account_currency(tax_acc)
 		comp_curr = frappe.get_cached_value("Company", self.company, "default_currency")
 
-		exch_rate = get_exchange_rate(acc_curr, comp_curr, self.posting_date)
+		exch_rate = _get_exchange_rate(acc_curr, comp_curr, self.posting_date)
 
 		tax_amt_in_comp_curr = flt(tax_details.get("tax_amount"), precision)
 		tax_amt_in_acc_curr = flt(tax_amt_in_comp_curr / exch_rate, precision)
@@ -1811,8 +1811,6 @@ def get_exchange_rate(
 	credit=None,
 	exchange_rate=None,
 ):
-	from erpnext.setup.utils import get_exchange_rate
-
 	account_details = frappe.get_cached_value(
 		"Account", account, ["account_type", "root_type", "account_currency", "company"], as_dict=1
 	)
