@@ -380,11 +380,6 @@ class JournalEntry(AccountsController):
 		if not party:
 			return
 
-		party = party
-		party_type = party_type
-		party_account = party_account
-		party_row = party_row
-
 		dr_cr = "credit" if party_type == "Supplier" else "debit"
 		rev_dr_cr = "debit" if party_type == "Supplier" else "credit"
 		precision = self.precision(dr_cr, party_row)
