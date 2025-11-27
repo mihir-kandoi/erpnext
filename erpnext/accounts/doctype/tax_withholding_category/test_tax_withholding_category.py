@@ -865,6 +865,10 @@ class TestTaxWithholdingCategory(IntegrationTestCase):
 		jv.apply_tds = 1
 		jv.tax_withholding_category = "Cumulative Threshold TDS"
 		jv.save()
+
+		# Again saving should not change tds amount
+		jv.user_remark = "Test TDS on Journal Entry for Supplier"
+		jv.save()
 		jv.submit()
 
 		# TDS = 50000 * 10% = 5000
@@ -884,7 +888,6 @@ class TestTaxWithholdingCategory(IntegrationTestCase):
 
 		# Supplier amount should be reduced by TDS
 		self.assertEqual(supplier_row.credit, 45000)
-
 		jv.cancel()
 
 	def test_tcs_on_journal_entry_for_customer(self):
@@ -903,6 +906,10 @@ class TestTaxWithholdingCategory(IntegrationTestCase):
 		)
 		jv.apply_tds = 1
 		jv.tax_withholding_category = "Cumulative Threshold TCS"
+		jv.save()
+
+		# Again saving should not change tds amount
+		jv.user_remark = "Test TCS on Journal Entry for Customer"
 		jv.save()
 		jv.submit()
 
@@ -924,7 +931,6 @@ class TestTaxWithholdingCategory(IntegrationTestCase):
 
 		# Customer amount should be increased by TCS
 		self.assertEqual(customer_row.debit, 52000)
-
 		jv.cancel()
 
 
