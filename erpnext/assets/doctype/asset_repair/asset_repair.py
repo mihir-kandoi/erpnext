@@ -85,11 +85,33 @@ class AssetRepair(AccountsController):
 			)
 
 	def validate_purchase_invoices(self):
+		self.validate_duplicate_purchase_invoices()
 		self.validate_purchase_invoice_status()
 
 		for d in self.invoices:
 			self.validate_expense_account(d)
 			self.validate_purchase_invoice_repair_cost(d)
+
+	def validate_duplicate_purchase_invoices(self):
+		# account wise duplicate check
+		purchase_invoices = set()
+		duplicates = []
+		for row in self.invoices:
+			key = (row.purchase_invoice, row.expense_account)
+			if key in purchase_invoices:
+				duplicates.append((row.idx, row.purchase_invoice, row.expense_account))
+			else:
+				purchase_invoices.add(key)
+
+		if duplicates:
+			duplicate_links = "".join(
+				[
+					f"<li>{_('Row #{0}:').format(idx)} {get_link_to_form('Purchase Invoice', pi)} - {frappe.bold(account)}</li>"
+					for idx, pi, account in duplicates
+				]
+			)
+			msg = _("The following rows are duplicates:") + f"<br><ul>{duplicate_links}</ul>"
+			frappe.throw(msg)
 
 	def validate_purchase_invoice_status(self):
 		pi_names = [row.purchase_invoice for row in self.invoices]
@@ -123,7 +145,7 @@ class AssetRepair(AccountsController):
 		if row.expense_account not in valid_accounts:
 			frappe.throw(
 				_(
-					"Row {0}: Expense account {1} is not valid for Purchase Invoice {2}. "
+					"Row #{0}: Expense account {1} is not valid for Purchase Invoice {2}. "
 					"Only expense accounts from non-stock items are allowed."
 				).format(
 					row.idx,
@@ -141,7 +163,7 @@ class AssetRepair(AccountsController):
 		if flt(row.repair_cost) > available_amount:
 			frappe.throw(
 				_(
-					"Row {0}: Repair cost {1} exceeds available amount {2} for Purchase Invoice {3} and Account {4}"
+					"Row #{0}: Repair cost {1} exceeds available amount {2} for Purchase Invoice {3} and Account {4}"
 				).format(
 					row.idx,
 					frappe.bold(frappe.format_value(row.repair_cost, {"fieldtype": "Currency"})),
