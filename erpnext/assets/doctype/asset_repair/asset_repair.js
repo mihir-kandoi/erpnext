@@ -128,7 +128,7 @@ frappe.ui.form.on("Asset Repair Purchase Invoice", {
 	},
 
 	expense_account: function (frm, cdt, cdn) {
-		var row = locals[cdt][cdn];
+		let row = locals[cdt][cdn];
 
 		if (!row.purchase_invoice || !row.expense_account) {
 			frappe.model.set_value(cdt, cdn, "repair_cost", 0);
@@ -143,13 +143,19 @@ frappe.ui.form.on("Asset Repair Purchase Invoice", {
 			},
 			callback: function (r) {
 				if (r.message !== undefined) {
-					frappe.model.set_value(cdt, cdn, "repair_cost", r.message);
-
-					if (r.message <= 0) {
+					if (r.message > 0) {
+						frappe.model.set_value(cdt, cdn, "repair_cost", r.message);
+					} else {
+						frappe.model.set_value(cdt, cdn, "repair_cost", 0);
+						let pi_link = frappe.utils.get_form_link(
+							"Purchase Invoice",
+							row.purchase_invoice,
+							true
+						);
 						frappe.msgprint({
-							title: __("No Available Amount"),
 							message: __(
-								"There is no available repair cost for this Purchase Invoice and Expense Account combination."
+								"Row {0}: The entire expense amount for account {1} in {2} has already been allocated.",
+								[row.idx, row.expense_account.bold(), pi_link]
 							),
 							indicator: "orange",
 						});
