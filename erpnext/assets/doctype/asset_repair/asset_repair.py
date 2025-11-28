@@ -459,11 +459,6 @@ def get_expense_accounts(doctype, txt, searchfield, start, page_len, filters):
 
 	expense_accounts = _get_expense_accounts_for_purchase_invoice(purchase_invoice)
 
-	# Filter by search text if provided
-	if txt:
-		txt = txt.lower()
-		expense_accounts = [acc for acc in expense_accounts if txt in acc.lower()]
-
 	return [[account] for account in expense_accounts]
 
 
