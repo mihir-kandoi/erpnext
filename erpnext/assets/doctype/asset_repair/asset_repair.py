@@ -60,7 +60,7 @@ class AssetRepair(AccountsController):
 	# end: auto-generated types
 
 	def validate(self):
-		self.asset_doc = frappe.get_doc("Asset", self.asset)
+		self.asset_doc = frappe.get_lazy_doc("Asset", self.asset)
 		self.validate_asset()
 		self.validate_dates()
 		self.validate_purchase_invoices()
@@ -191,7 +191,7 @@ class AssetRepair(AccountsController):
 		self.cancel_sabb()
 
 	def after_delete(self):
-		frappe.get_doc("Asset", self.asset).set_status()
+		frappe.get_lazy_doc("Asset", self.asset).set_status()
 
 	def check_repair_status(self):
 		if self.repair_status == "Pending" and self.docstatus == 1:
@@ -333,7 +333,10 @@ class AssetRepair(AccountsController):
 			return
 
 		# creating GL Entries for each row in Stock Items based on the Stock Entry created for it
-		stock_entry = frappe.get_doc("Stock Entry", {"asset_repair": self.name})
+		stock_entry_name = frappe.db.get_value("Stock Entry", {"asset_repair": self.name}, "name")
+		stock_entry_items = frappe.get_all(
+			"Stock Entry Detail", filters={"parent": stock_entry_name}, fields=["expense_account", "amount"]
+		)
 
 		default_expense_account = None
 		if not erpnext.is_perpetual_inventory_enabled(self.company):
@@ -343,7 +346,7 @@ class AssetRepair(AccountsController):
 			if not default_expense_account:
 				frappe.throw(_("Please set default Expense Account in Company {0}").format(self.company))
 
-		for item in stock_entry.items:
+		for item in stock_entry_items:
 			if flt(item.amount) > 0:
 				gl_entries.append(
 					self.get_gl_dict(
@@ -374,7 +377,7 @@ class AssetRepair(AccountsController):
 							"cost_center": self.cost_center,
 							"posting_date": self.completion_date,
 							"against_voucher_type": "Stock Entry",
-							"against_voucher": stock_entry.name,
+							"against_voucher": stock_entry_name,
 							"company": self.company,
 						},
 						item=self,
