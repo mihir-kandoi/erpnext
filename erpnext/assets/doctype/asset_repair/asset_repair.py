@@ -85,19 +85,37 @@ class AssetRepair(AccountsController):
 			)
 
 	def validate_purchase_invoices(self):
+		self.validate_purchase_invoice_status()
+
 		for d in self.invoices:
-			self.validate_purchase_invoice_status(d.purchase_invoice)
 			self.validate_expense_account(d)
 			self.validate_purchase_invoice_repair_cost(d)
 
-	def validate_purchase_invoice_status(self, purchase_invoice):
-		docstatus = frappe.db.get_value("Purchase Invoice", purchase_invoice, "docstatus")
-		if docstatus == 0:
-			frappe.throw(
-				_("{0} is still in Draft. Please submit it before saving the Asset Repair.").format(
-					get_link_to_form("Purchase Invoice", purchase_invoice)
-				)
+	def validate_purchase_invoice_status(self):
+		pi_names = [row.purchase_invoice for row in self.invoices]
+		docstatus = frappe._dict(
+			frappe.db.get_all(
+				"Purchase Invoice",
+				filters={"name": ["in", pi_names]},
+				fields=["name", "docstatus"],
+				as_list=True,
 			)
+		)
+
+		invalid_invoice = []
+		for row in self.invoices:
+			if docstatus.get(row.purchase_invoice) != 1:
+				invalid_invoice.append((row.idx, row.purchase_invoice))
+
+		if invalid_invoice:
+			invoice_links = "".join(
+				[
+					f"<li>{_('Row #{0}:').format(idx)} {get_link_to_form('Purchase Invoice', pi)}</li>"
+					for idx, pi in invalid_invoice
+				]
+			)
+			msg = _("The following Purchase Invoices are not submitted:") + f"<br><ul>{invoice_links}</ul>"
+			frappe.throw(msg)
 
 	def validate_expense_account(self, row):
 		"""Validate that the expense account exists in the purchase invoice for non-stock items."""
