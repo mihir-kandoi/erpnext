@@ -507,13 +507,7 @@ def get_expense_accounts(doctype, txt, searchfield, start, page_len, filters):
 
 def _get_expense_accounts_for_purchase_invoice(purchase_invoice: str) -> list[str]:
 	"""
-	Internal function to get expense accounts for non-stock items from the purchase invoice.
-
-	Args:
-	    purchase_invoice: The Purchase Invoice name
-
-	Returns:
-	    List of expense account names
+	Get expense accounts for non-stock items from the purchase invoice.
 	"""
 	pi_items = frappe.db.get_all(
 		"Purchase Invoice Item",
