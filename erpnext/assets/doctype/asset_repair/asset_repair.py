@@ -559,6 +559,11 @@ def get_unallocated_repair_cost(
 	"""
 	Calculate the unused repair cost for a purchase invoice and expense account.
 	"""
+	if not purchase_invoice or not expense_account:
+		return 0.0
+
+	frappe.has_permission("Purchase Invoice","read", purchase_invoice, throw=True)
+
 	used_amount = get_allocated_repair_cost(purchase_invoice, expense_account, exclude_asset_repair)
 	total_amount = get_total_expense_amount(purchase_invoice, expense_account)
 
