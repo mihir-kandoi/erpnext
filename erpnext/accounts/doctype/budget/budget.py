@@ -53,6 +53,7 @@ class Budget(Document):
 		budget_against: DF.Literal["", "Cost Center", "Project"]
 		budget_amount: DF.Currency
 		budget_distribution: DF.Table[BudgetDistribution]
+		budget_distribution_total: DF.Currency
 		budget_end_date: DF.Date | None
 		budget_start_date: DF.Date | None
 		company: DF.Link
@@ -230,6 +231,7 @@ class Budget(Document):
 
 	def before_save(self):
 		self.allocate_budget()
+		self.budget_distribution_total = sum(flt(row.amount) for row in self.budget_distribution)
 
 	def on_update(self):
 		self.validate_distribution_totals()
@@ -304,6 +306,8 @@ class Budget(Document):
 			row.start_date = start_date
 			row.end_date = end_date
 			self.add_allocated_amount(row, row_percent)
+
+		self.budget_distribution_total = self.budget_amount
 
 	def get_budget_periods(self):
 		"""Return list of (start_date, end_date) tuples based on frequency."""

@@ -55,6 +55,7 @@ frappe.ui.form.on("Budget", {
 			frm.doc.budget_distribution.forEach((row) => {
 				row.amount = flt((row.percent / 100) * frm.doc.budget_amount, 2);
 			});
+			set_total_budget_amount(frm);
 			frm.refresh_field("budget_distribution");
 		}
 	},
@@ -105,6 +106,8 @@ frappe.ui.form.on("Budget Distribution", {
 		let row = frappe.get_doc(cdt, cdn);
 		if (frm.doc.budget_amount) {
 			row.percent = flt((row.amount / frm.doc.budget_amount) * 100, 2);
+
+			set_total_budget_amount(frm);
 			frm.refresh_field("budget_distribution");
 		}
 	},
@@ -112,10 +115,22 @@ frappe.ui.form.on("Budget Distribution", {
 		let row = frappe.get_doc(cdt, cdn);
 		if (frm.doc.budget_amount) {
 			row.amount = flt((row.percent / 100) * frm.doc.budget_amount, 2);
+
+			set_total_budget_amount(frm);
 			frm.refresh_field("budget_distribution");
 		}
 	},
 });
+
+function set_total_budget_amount(frm) {
+	let total = 0;
+
+	(frm.doc.budget_distribution || []).forEach((row) => {
+		total += flt(row.amount);
+	});
+
+	frm.set_value("budget_distribution_total", total);
+}
 
 function toggle_distribution_fields(frm) {
 	const grid = frm.fields_dict.budget_distribution.grid;
