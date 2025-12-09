@@ -60,8 +60,6 @@ frappe.ui.form.on("Budget", {
 	},
 
 	distribute_equally: function (frm) {
-		console.log("here");
-
 		toggle_distribution_fields(frm);
 	},
 
