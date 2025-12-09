@@ -12,6 +12,15 @@ frappe.ui.form.on("Budget", {
 			};
 		});
 
+		frm.set_query("account", function () {
+			return {
+				filters: {
+					is_group: 0,
+					company: frm.doc.company,
+				},
+			};
+		});
+
 		erpnext.accounts.dimensions.setup_dimension_filters(frm, frm.doctype);
 		frappe.db.get_single_value("Accounts Settings", "use_legacy_budget_controller").then((value) => {
 			if (value) {
