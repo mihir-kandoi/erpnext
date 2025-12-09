@@ -33,23 +33,13 @@ frappe.ui.form.on("Budget", {
 		frm.trigger("toggle_reqd_fields");
 
 		if (!frm.doc.__islocal && frm.doc.docstatus == 1) {
-			let exception_role = await frappe.db.get_value(
-				"Company",
-				frm.doc.company,
-				"exception_budget_approver_role"
+			frm.add_custom_button(
+				__("Revise Budget"),
+				function () {
+					frm.events.revise_budget_action(frm);
+				},
+				__("Actions")
 			);
-
-			const role = exception_role.message.exception_budget_approver_role;
-
-			if (role && frappe.user.has_role(role)) {
-				frm.add_custom_button(
-					__("Revise Budget"),
-					function () {
-						frm.events.revise_budget_action(frm);
-					},
-					__("Actions")
-				);
-			}
 		}
 
 		toggle_distribution_fields(frm);
