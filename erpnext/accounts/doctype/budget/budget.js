@@ -42,6 +42,8 @@ frappe.ui.form.on("Budget", {
 				);
 			}
 		}
+
+		toggle_distribution_fields(frm);
 	},
 
 	budget_against: function (frm) {
@@ -56,6 +58,12 @@ frappe.ui.form.on("Budget", {
 			});
 			frm.refresh_field("budget_distribution");
 		}
+	},
+
+	distribute_equally: function (frm) {
+		console.log("here");
+
+		toggle_distribution_fields(frm);
 	},
 
 	set_null_value: function (frm) {
@@ -111,3 +119,13 @@ frappe.ui.form.on("Budget Distribution", {
 		}
 	},
 });
+
+function toggle_distribution_fields(frm) {
+	const grid = frm.fields_dict.budget_distribution.grid;
+
+	["amount", "percent"].forEach((field) => {
+		grid.update_docfield_property(field, "read_only", frm.doc.distribute_equally);
+	});
+
+	grid.refresh();
+}
