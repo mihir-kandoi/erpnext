@@ -81,6 +81,18 @@ class BuyingController(SubcontractingController):
 				),
 			)
 
+		if (
+			self.get("company")
+			and (
+				default_buying_terms := frappe.get_value(
+					"Company", self.get("company"), "default_buying_terms"
+				)
+			)
+			and not self.tc_name
+		):
+			self.tc_name = default_buying_terms
+			self.terms = frappe.get_value("Terms and Conditions", self.tc_name, "terms")
+
 	def validate_posting_date_with_po(self):
 		po_list = {x.purchase_order for x in self.items if x.purchase_order}
 
