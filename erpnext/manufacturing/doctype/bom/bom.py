@@ -993,14 +993,13 @@ class BOM(WebsiteGenerator):
 		self.cur_exploded_items = {}
 		for d in self.get("items"):
 			if d.bom_no:
-				self.get_child_exploded_items(d.bom_no, d.stock_qty, d.operation)
+				self.get_child_exploded_items(d.bom_no, d.stock_qty)
 			elif d.item_code:
 				self.add_to_cur_exploded_items(
 					frappe._dict(
 						{
 							"item_code": d.item_code,
 							"item_name": d.item_name,
-							"operation": d.operation,
 							"is_sub_assembly_item": d.is_sub_assembly_item,
 							"source_warehouse": d.source_warehouse,
 							"description": d.description,
@@ -1023,7 +1022,7 @@ class BOM(WebsiteGenerator):
 		else:
 			self.cur_exploded_items[args.item_code] = args
 
-	def get_child_exploded_items(self, bom_no, stock_qty, operation=None):
+	def get_child_exploded_items(self, bom_no, stock_qty):
 		"""Add all items from Flat BOM of child BOM"""
 		# Did not use qty_consumed_per_unit in the query, as it leads to rounding loss
 		child_fb_items = frappe.db.sql(
@@ -1033,7 +1032,6 @@ class BOM(WebsiteGenerator):
 				bom_item.item_name,
 				bom_item.description,
 				bom_item.source_warehouse,
-				bom_item.operation,
 				bom_item.is_sub_assembly_item,
 				bom_item.stock_uom,
 				bom_item.stock_qty,
@@ -1058,7 +1056,6 @@ class BOM(WebsiteGenerator):
 						"item_code": d["item_code"],
 						"item_name": d["item_name"],
 						"source_warehouse": d["source_warehouse"],
-						"operation": d["operation"] or operation,
 						"description": d["description"],
 						"stock_uom": d["stock_uom"],
 						"stock_qty": d["qty_consumed_per_unit"] * stock_qty,
@@ -1301,7 +1298,7 @@ def get_bom_items_as_dict(
 			is_stock_item=is_stock_item,
 			qty_field="stock_qty",
 			group_by_cond=group_by_cond,
-			select_columns=""", bom_item.source_warehouse, bom_item.operation,
+			select_columns=""", bom_item.source_warehouse,
 				bom_item.include_item_in_manufacturing, bom_item.description, bom_item.rate, bom_item.sourced_by_supplier,
 				(Select idx from `tabBOM Item` where item_code = bom_item.item_code and parent = %(parent)s limit 1) as idx""",
 		)
@@ -1327,7 +1324,7 @@ def get_bom_items_as_dict(
 			is_stock_item=is_stock_item,
 			qty_field="stock_qty" if fetch_qty_in_stock_uom else "qty",
 			select_columns=""", bom_item.uom, bom_item.conversion_factor, bom_item.source_warehouse,
-				bom_item.operation, bom_item.include_item_in_manufacturing, bom_item.sourced_by_supplier,
+				bom_item.include_item_in_manufacturing, bom_item.sourced_by_supplier,
 				bom_item.description, bom_item.base_rate as rate, bom_item.operation_row_id, bom_item.is_phantom_item , bom_item.bom_no """,
 			group_by_cond=group_by_cond,
 		)

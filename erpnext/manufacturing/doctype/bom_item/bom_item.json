@@ -1,6 +1,6 @@
 {
  "actions": [],
- "creation": "2013-02-22 01:27:49",
+ "creation": "2025-12-10 14:46:47.283300",
  "doctype": "DocType",
  "document_type": "Setup",
  "editable_grid": 1,
@@ -8,7 +8,6 @@
  "field_order": [
   "item_code",
   "item_name",
-  "operation",
   "operation_row_id",
   "column_break_3",
   "do_not_explode",
@@ -64,13 +63,6 @@
    "fieldname": "item_name",
    "fieldtype": "Data",
    "label": "Item Name"
-  },
-  {
-   "depends_on": "eval:parent.with_operations == 1",
-   "fieldname": "operation",
-   "fieldtype": "Link",
-   "label": "Item operation",
-   "options": "Operation"
   },
   {
    "fieldname": "column_break_3",
@@ -327,7 +319,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-11-05 19:00:38.646539",
+ "modified": "2025-12-10 15:43:29.063928",
  "modified_by": "Administrator",
  "module": "Manufacturing",
  "name": "BOM Item",

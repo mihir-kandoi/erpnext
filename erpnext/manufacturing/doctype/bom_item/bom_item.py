@@ -30,7 +30,6 @@ class BOMItem(Document):
 		is_sub_assembly_item: DF.Check
 		item_code: DF.Link
 		item_name: DF.Data | None
-		operation: DF.Link | None
 		operation_row_id: DF.Int
 		original_item: DF.Link | None
 		parent: DF.Data
