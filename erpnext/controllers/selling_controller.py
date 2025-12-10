@@ -43,6 +43,14 @@ class SellingController(StockController):
 				),
 			)
 
+		if (
+			self.company
+			and (default_selling_terms := frappe.get_value("Company", self.company, "default_selling_terms"))
+			and not self.tc_name
+		):
+			self.tc_name = default_selling_terms
+			self.terms = frappe.get_value("Terms and Conditions", self.tc_name, "terms")
+
 	def validate(self):
 		super().validate()
 		self.validate_items()
