@@ -89,10 +89,12 @@ class TestPurchaseOrder(IntegrationTestCase):
 			]
 		)
 
+		frappe.db.savepoint("before_cancel")
 		# check if item having purchase order can be removed
 		self.assertRaises(
 			frappe.LinkExistsError, update_child_qty_rate, "Supplier Quotation", trans_item, sq.name
 		)
+		frappe.db.rollback(save_point="before_cancel")
 
 		trans_item = json.dumps(
 			[
