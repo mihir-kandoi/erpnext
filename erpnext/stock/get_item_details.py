@@ -691,7 +691,7 @@ def get_item_tax_info(doc, tax_category, item_codes, item_rates=None, item_tax_t
 
 @frappe.whitelist()
 @erpnext.normalize_ctx_input(ItemDetailsCtx)
-def get_item_tax_template(ctx: ItemDetailsCtx, item=None, out: ItemDetails | None = None):
+def get_item_tax_template(ctx, item=None, out: ItemDetails | None = None):
 	"""
 	Determines item_tax template from item or parent item groups.
 
