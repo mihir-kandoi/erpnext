@@ -549,23 +549,16 @@ erpnext.buying.RequestforQuotationController = class RequestforQuotationControll
 						callback: load_suppliers,
 					});
 				} else if (args.supplier_group) {
-<<<<<<< HEAD
 					return frappe.call({
 						method: "frappe.client.get_list",
 						args: {
 							doctype: "Supplier",
-=======
-					frappe.db
-						.get_list("Supplier", {
-							filters: {
-								supplier_group: args.supplier_group,
-								disabled: 0,
-							},
-							limit: 100,
->>>>>>> 6cc2290f6e (fix(buying): add disabled filter for supplier)
 							order_by: "name",
 							fields: ["name"],
-							filters: [["Supplier", "supplier_group", "=", args.supplier_group]],
+							filters: [
+								["Supplier", "supplier_group", "=", args.supplier_group],
+								["disabled", "=", 0],
+							],
 						},
 						callback: load_suppliers,
 					});
