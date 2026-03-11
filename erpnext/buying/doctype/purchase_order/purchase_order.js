@@ -58,14 +58,6 @@ frappe.ui.form.on("Purchase Order", {
 		erpnext.accounts.dimensions.update_dimension(frm, frm.doctype);
 	},
 
-	schedule_date(frm) {
-		if (frm.doc.schedule_date) {
-			frm.doc.items.forEach((d) => {
-				frappe.model.set_value(d.doctype, d.name, "schedule_date", frm.doc.schedule_date);
-			});
-		}
-	},
-
 	transaction_date(frm) {
 		prevent_past_schedule_dates(frm);
 		frm.set_value("schedule_date", "");
