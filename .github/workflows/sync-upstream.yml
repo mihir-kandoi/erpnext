@@ -1,0 +1,50 @@
+name: Sync upstream fork
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to sync from frappe/erpnext"
+        required: true
+        default: develop
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream-${{ github.event.inputs.branch || 'develop' }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync branch
+    runs-on: ubuntu-latest
+
+    env:
+      TARGET_BRANCH: ${{ github.event.inputs.branch || 'develop' }}
+      UPSTREAM_REPOSITORY: frappe/erpnext
+
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch repositories
+        run: |
+          git remote add source "https://github.com/${UPSTREAM_REPOSITORY}.git"
+          git fetch origin "${TARGET_BRANCH}"
+          git fetch source "${TARGET_BRANCH}"
+
+      - name: Fast-forward fork branch
+        run: |
+          git checkout -B "${TARGET_BRANCH}" "origin/${TARGET_BRANCH}"
+          git merge --ff-only "source/${TARGET_BRANCH}"
+          git push origin "${TARGET_BRANCH}"
