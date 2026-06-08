@@ -486,3 +486,4 @@ erpnext.patches.v16_0.clear_procedures_from_receivable_report
 erpnext.patches.v16_0.migrate_address_contact_custom_fields
 erpnext.patches.v16_0.rename_secondary_item_type_field
 erpnext.patches.v16_0.submit_existing_product_bundles
+erpnext.patches.v16_0.stamp_product_bundle_version_on_transactions

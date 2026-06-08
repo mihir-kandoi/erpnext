@@ -77,6 +77,46 @@ class TestPackedItem(ERPNextTestSuite):
 
 		self.assertEqual(len(so.packed_items), 0)
 
+	def test_item_and_packed_rows_record_bundle_version(self):
+		"The item row and its packed items record the resolved Product Bundle version."
+		from erpnext.selling.doctype.product_bundle.product_bundle import get_active_product_bundle
+
+		version = get_active_product_bundle(self.bundle)
+		self.assertTrue(version and version.startswith("PB-"))
+
+		so = make_sales_order(item_code=self.bundle, qty=1, warehouse=self.warehouse)
+		self.assertEqual(so.items[0].product_bundle, version)
+		self.assertEqual(len(so.packed_items), 2)
+		for pi in so.packed_items:
+			self.assertEqual(pi.product_bundle, version)
+
+		# the version carries onto a Delivery Note mapped from the Sales Order
+		dn = make_delivery_note(so.name)
+		self.assertEqual(dn.items[0].product_bundle, version)
+		for pi in dn.packed_items:
+			self.assertEqual(pi.product_bundle, version)
+
+	def test_backfill_patch_stamps_existing_rows(self):
+		"The backfill patch stamps the version on rows that predate the field."
+		from erpnext.patches.v16_0.stamp_product_bundle_version_on_transactions import (
+			execute as stamp_versions,
+		)
+		from erpnext.selling.doctype.product_bundle.product_bundle import get_active_product_bundle
+
+		version = get_active_product_bundle(self.bundle)
+		so = make_sales_order(item_code=self.bundle, qty=1, do_not_submit=True)
+
+		# simulate pre-migration rows that have no version recorded
+		frappe.db.set_value("Sales Order Item", so.items[0].name, "product_bundle", None)
+		for pi in so.packed_items:
+			frappe.db.set_value("Packed Item", pi.name, "product_bundle", None)
+
+		stamp_versions()
+
+		self.assertEqual(frappe.db.get_value("Sales Order Item", so.items[0].name, "product_bundle"), version)
+		for pi in so.packed_items:
+			self.assertEqual(frappe.db.get_value("Packed Item", pi.name, "product_bundle"), version)
+
 	@ERPNextTestSuite.change_settings("Selling Settings", {"allow_multiple_items": 1})
 	def test_recurring_bundle_item(self):
 		"Test impact on packed items if same bundle item is added and removed."

@@ -76,6 +76,8 @@ def make_packing_list(doc):
 	if doc.get("_action") and doc._action == "update_after_submit":
 		return
 
+	from erpnext.selling.doctype.product_bundle.product_bundle import get_active_product_bundle
+
 	parent_items_price, reset = {}, False
 	set_price_from_children = frappe.get_single_value("Selling Settings", "editable_bundle_item_rates")
 
@@ -84,7 +86,12 @@ def make_packing_list(doc):
 	reset = reset_packing_list(doc)
 
 	for item_row in doc.get("items"):
-		if is_product_bundle(item_row.item_code):
+		# Record exactly which Product Bundle version this row was packed from.
+		bundle_name = get_active_product_bundle(item_row.item_code)
+		if item_row.meta.has_field("product_bundle"):
+			item_row.product_bundle = bundle_name
+
+		if bundle_name:
 			for bundle_item in get_product_bundle_items(item_row.item_code):
 				pi_row = add_packed_item_row(
 					doc=doc,
@@ -93,6 +100,7 @@ def make_packing_list(doc):
 					packed_items_table=stale_packed_items_table,
 					reset=reset,
 				)
+				pi_row.product_bundle = bundle_name
 				item_data = get_packed_item_details(bundle_item.item_code, doc.company)
 				update_packed_item_basic_data(item_row, pi_row, bundle_item, item_data)
 				update_packed_item_stock_data(item_row, pi_row, bundle_item, item_data, doc)
