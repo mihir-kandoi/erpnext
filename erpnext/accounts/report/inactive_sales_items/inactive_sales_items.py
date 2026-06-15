@@ -4,9 +4,8 @@
 
 import frappe
 from frappe import _
-from frappe.query_builder import CustomFunction
+from frappe.query_builder.functions import CurDate, DateDiff
 from frappe.utils import cint
-from pypika.terms import LiteralValue
 
 
 def execute(filters=None):
@@ -105,14 +104,9 @@ def get_sales_details(filters):
 
 	date_col = parent.transaction_date if filters["based_on"] == "Sales Order" else parent.posting_date
 
-	# DATEDIFF()/CURRENT_DATE() are MySQL-only; postgres subtracts dates directly (and CURRENT_DATE
-	# is a bare keyword, not a function). Both forms yield the integer number of days.
-	if frappe.db.db_type == "postgres":
-		days_since_last_order = LiteralValue("CURRENT_DATE") - date_col
-	else:
-		date_diff = CustomFunction("DATEDIFF", ["d1", "d2"])
-		current_date = CustomFunction("CURRENT_DATE", [])
-		days_since_last_order = date_diff(current_date(), date_col)
+	# DateDiff is cross-database (DATEDIFF on MariaDB, date subtraction on postgres); CurDate()
+	# renders the bare CURRENT_DATE keyword. Yields the integer number of days.
+	days_since_last_order = DateDiff(CurDate(), date_col)
 
 	sales_data = (
 		frappe.qb.from_(parent)
