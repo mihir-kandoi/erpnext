@@ -151,7 +151,10 @@ class TestAccountsReceivable(ERPNextTestSuite, AccountsTestMixin):
 
 		expected_data_after_credit_note = [0, 0, 100, 0, -100, self.debit_to]
 
-		row = report[1][-1]
+		# Identify the credit-note row by its voucher rather than by physical position:
+		# it shares posting_date and party with the invoice rows, so row order among them
+		# isn't guaranteed (and isn't portable across databases).
+		row = next(d for d in report[1] if d.voucher_no == cr_note.name)
 		self.assertEqual(
 			expected_data_after_credit_note,
 			[
