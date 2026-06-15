@@ -97,19 +97,25 @@ def get_reserved_qty(item_code, warehouse):
 	open_so = (so.docstatus == 1) & so.status.notin(["On Hold", "Closed"])
 	not_delivered_by_supplier = so_item.delivered_by_supplier.isnull() | (so_item.delivered_by_supplier == 0)
 
+	# Keep the reserved-qty rollup in the DB (one aggregate per branch) instead of streaming
+	# every open packed-item / SO-item row into Python. `qty <> 0` mirrors the original
+	# `where so_item_qty >= so_item_delivered_qty` *and* guards the divide-by-`qty` below
+	# (MariaDB returned NULL for x/0, postgres raises), so qty=0 rows -- which contributed
+	# nothing anyway -- are excluded on both databases.
+	reservable = (so_item.qty != 0) & (so_item.qty >= so_item.delivered_qty)
+	if dont_reserve_on_return:
+		net_reserved = so_item.qty - so_item.delivered_qty - so_item.returned_qty
+	else:
+		net_reserved = so_item.qty - so_item.delivered_qty
+
 	# Bundled (packed) items reserving stock against an open Sales Order
-	packed_rows = (
+	packed_qty = (
 		frappe.qb.from_(packed_item)
 		.inner_join(so)
 		.on(so.name == packed_item.parent)
 		.inner_join(so_item)
 		.on(so_item.name == packed_item.parent_detail_docname)
-		.select(
-			packed_item.qty.as_("dnpi_qty"),
-			so_item.qty.as_("so_item_qty"),
-			so_item.delivered_qty.as_("so_item_delivered_qty"),
-			so_item.returned_qty.as_("so_item_returned_qty"),
-		)
+		.select(Sum(packed_item.qty * net_reserved / so_item.qty))
 		.where(
 			(packed_item.item_code == item_code)
 			& (packed_item.warehouse == warehouse)
@@ -117,42 +123,28 @@ def get_reserved_qty(item_code, warehouse):
 			& (packed_item.item_code != packed_item.parent_item)
 			& not_delivered_by_supplier
 			& open_so
+			& reservable
 		)
-		.run(as_dict=True)
+		.run()
 	)
 
 	# Sales Order items directly reserving stock
-	so_item_rows = (
+	so_item_qty = (
 		frappe.qb.from_(so_item)
 		.inner_join(so)
 		.on(so.name == so_item.parent)
-		.select(
-			so_item.stock_qty.as_("dnpi_qty"),
-			so_item.qty.as_("so_item_qty"),
-			so_item.delivered_qty.as_("so_item_delivered_qty"),
-			so_item.returned_qty.as_("so_item_returned_qty"),
-		)
+		.select(Sum(so_item.stock_qty * net_reserved / so_item.qty))
 		.where(
 			(so_item.item_code == item_code)
 			& (so_item.warehouse == warehouse)
 			& not_delivered_by_supplier
 			& open_so
+			& reservable
 		)
-		.run(as_dict=True)
+		.run()
 	)
 
-	reserved_qty = 0.0
-	for row in packed_rows + so_item_rows:
-		so_item_qty = flt(row.so_item_qty)
-		delivered_qty = flt(row.so_item_delivered_qty)
-		# mirrors the SQL `where so_item_qty >= so_item_delivered_qty`; also guards the
-		# divide-by-`so_item_qty` (MariaDB returned NULL for x/0, postgres raises)
-		if not so_item_qty or so_item_qty < delivered_qty:
-			continue
-		returned_qty = flt(row.so_item_returned_qty) if dont_reserve_on_return else 0.0
-		reserved_qty += flt(row.dnpi_qty) * ((so_item_qty - delivered_qty - returned_qty) / so_item_qty)
-
-	return reserved_qty
+	return flt(packed_qty[0][0]) + flt(so_item_qty[0][0])
 
 
 def get_indented_qty(item_code, warehouse):

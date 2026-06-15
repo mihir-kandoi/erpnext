@@ -971,14 +971,24 @@ def get_all_transactions_annual_history(company):
 		("Project", "creation"),
 	]
 
+	from frappe.query_builder.functions import Count
+
+	# Count per date in the DB (one grouped query per DocType) rather than streaming every
+	# transaction row into Python. A portable UNION across these mixed date columns isn't
+	# straightforward, so we aggregate each DocType and merge the per-date counts.
 	counts = Counter()
 	for doctype, date_field in date_doctypes:
-		for row in frappe.get_all(
-			doctype,
-			filters={"company": company, date_field: [">", one_year_ago]},
-			fields=[f"{date_field} as transaction_date"],
-		):
-			counts[row.transaction_date] += 1
+		dt = frappe.qb.DocType(doctype)
+		date_col = getattr(dt, date_field)
+		rows = (
+			frappe.qb.from_(dt)
+			.select(date_col.as_("transaction_date"), Count("*").as_("count"))
+			.where((dt.company == company) & (date_col > one_year_ago))
+			.groupby(date_col)
+			.run(as_dict=True)
+		)
+		for row in rows:
+			counts[row.transaction_date] += row.count
 
 	for transaction_date, count in counts.items():
 		out.update({get_timestamp(transaction_date): count})

@@ -1780,29 +1780,35 @@ def get_future_stock_vouchers(posting_date, posting_time, for_warehouses=None, f
 
 	SLE = DocType("Stock Ledger Entry")
 
+	conditions = (SLE.posting_datetime >= posting_datetime) & (SLE.is_cancelled == 0)
+	if for_items:
+		conditions &= SLE.item_code.isin(for_items)
+	if for_warehouses:
+		conditions &= SLE.warehouse.isin(for_warehouses)
+	if company:
+		conditions &= SLE.company == company
+
+	# These SLE rows must stay locked for the duration of the repost so a concurrent stock
+	# transaction can't modify them mid-flight (the original DISTINCT ... FOR UPDATE did this).
+	# MariaDB carries the lock on the grouped query below; postgres rejects FOR UPDATE alongside
+	# GROUP BY, so lock the matching rows in a separate pass first -- the row locks are held until
+	# the surrounding transaction ends, giving the same protection.
+	if frappe.db.db_type == "postgres":
+		frappe.qb.from_(SLE).select(SLE.name).where(conditions).for_update().run()
+
 	# distinct vouchers in chronological order; expressed as GROUP BY + Min() so it's valid on
 	# postgres (SELECT DISTINCT can't ORDER BY non-selected cols, and FOR UPDATE is invalid with both).
 	# posting_datetime is constant per voucher, so the ordering is unchanged vs the DISTINCT form.
 	query = (
 		frappe.qb.from_(SLE)
 		.select(SLE.voucher_type, SLE.voucher_no)
-		.where(SLE.posting_datetime >= posting_datetime)
-		.where(SLE.is_cancelled == 0)
+		.where(conditions)
 		.groupby(SLE.voucher_type, SLE.voucher_no)
 		.orderby(Min(SLE.posting_datetime))
 		.orderby(Min(SLE.creation))
 	)
 
-	if for_items:
-		query = query.where(SLE.item_code.isin(for_items))
-
-	if for_warehouses:
-		query = query.where(SLE.warehouse.isin(for_warehouses))
-
-	if company:
-		query = query.where(SLE.company == company)
-
-	# lock scanned rows on MariaDB; FOR UPDATE is invalid with GROUP BY on postgres
+	# lock scanned rows on MariaDB; on postgres they were already locked above
 	if frappe.db.db_type != "postgres":
 		query = query.for_update()
 
