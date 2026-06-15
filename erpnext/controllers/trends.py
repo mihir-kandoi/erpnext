@@ -365,7 +365,7 @@ def based_wise_columns_query(based_on, trans):
 	if based_on == "Item":
 		based_on_details["based_on_cols"] = ["Item:Link/Item:120", "Item Name:Data:120"]
 		based_on_details["based_on_select"] = "t2.item_code, t2.item_name,"
-		based_on_details["based_on_group_by"] = "t2.item_code"
+		based_on_details["based_on_group_by"] = "t2.item_code, t2.item_name"
 		based_on_details["addl_tables"] = ""
 
 	elif based_on == "Item Group":
@@ -389,7 +389,11 @@ def based_wise_columns_query(based_on, trans):
 				"Territory:Link/Territory:120",
 			]
 			based_on_details["based_on_select"] = "t1.customer, t1.customer_name, t1.territory,"
-		based_on_details["based_on_group_by"] = "t1.party_name" if trans == "Quotation" else "t1.customer"
+		based_on_details["based_on_group_by"] = (
+			"t1.party_name, t1.customer_name, t1.territory"
+			if trans == "Quotation"
+			else "t1.customer, t1.customer_name, t1.territory"
+		)
 		based_on_details["addl_tables"] = ""
 
 	elif based_on == "Customer Group":
@@ -405,7 +409,7 @@ def based_wise_columns_query(based_on, trans):
 			"Supplier Group:Link/Supplier Group:140",
 		]
 		based_on_details["based_on_select"] = "t1.supplier, t1.supplier_name, t3.supplier_group,"
-		based_on_details["based_on_group_by"] = "t1.supplier"
+		based_on_details["based_on_group_by"] = "t1.supplier, t1.supplier_name, t3.supplier_group"
 		based_on_details["addl_tables"] = ",`tabSupplier` t3"
 		based_on_details["addl_tables_relational_cond"] = " and t1.supplier = t3.name"
 
@@ -437,6 +441,7 @@ def based_wise_columns_query(based_on, trans):
 			frappe.throw(_("Project-wise data is not available for Quotation"))
 
 	based_on_details["based_on_select"] += "t4.default_currency as currency,"
+	based_on_details["based_on_group_by"] += ", t4.default_currency"
 	based_on_details["based_on_cols"].append("Currency:Link/Currency:120")
 	based_on_details["addl_tables"] += ", `tabCompany` t4"
 	based_on_details["addl_tables_relational_cond"] = (
