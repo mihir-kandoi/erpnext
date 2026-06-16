@@ -5,8 +5,7 @@
 import frappe
 from frappe import _
 from frappe.query_builder import DocType
-from frappe.query_builder.custom import GROUP_CONCAT, STRING_AGG
-from frappe.query_builder.functions import Date
+from frappe.query_builder.functions import Date, GroupConcat
 
 Opportunity = DocType("Opportunity")
 OpportunityLostReasonDetail = DocType("Opportunity Lost Reason Detail")
@@ -72,15 +71,8 @@ def get_columns():
 
 
 def get_data(filters):
-	# GROUP_CONCAT (MariaDB) takes its separator via .separator(); STRING_AGG (postgres) takes it as a
-	# constructor argument. Their signatures are incompatible, so the db-aware GroupConcat ImportMapper
-	# can't carry a custom ", " separator -- build the right term per backend.
-	if frappe.db.db_type == "postgres":
-		lost_reasons = STRING_AGG(OpportunityLostReasonDetail.lost_reason, ", ", alias="lost_reason")
-	else:
-		lost_reasons = GROUP_CONCAT(OpportunityLostReasonDetail.lost_reason, alias="lost_reason").separator(
-			", "
-		)
+	# db-aware GROUP_CONCAT (MariaDB) / STRING_AGG (postgres) with a ", " separator
+	lost_reasons = GroupConcat(OpportunityLostReasonDetail.lost_reason, ", ", alias="lost_reason")
 
 	query = (
 		frappe.qb.from_(Opportunity)
