@@ -673,10 +673,14 @@ class TestItem(ERPNextTestSuite):
 
 		now = time.time()
 		one_year_ago = now - 366 * 24 * 60 * 60
+		# posting_date is a calendar date; its midnight unix timestamp (taken in the database
+		# session timezone) can sit up to a day ahead of the precise current instant when the app
+		# timezone is ahead of UTC, so allow a day of slack on the upper bound.
+		one_day = 24 * 60 * 60
 
 		for timestamp, count in data.items():
 			self.assertIsInstance(timestamp, int)
-			self.assertTrue(one_year_ago <= timestamp <= now)
+			self.assertTrue(one_year_ago <= timestamp <= now + one_day)
 			self.assertIsInstance(count, int)
 			self.assertGreaterEqual(count, 0)
 
