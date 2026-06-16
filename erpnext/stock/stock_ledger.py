@@ -1869,13 +1869,16 @@ def get_stock_ledger_entries(
 	if check_serial_no and previous_sle.get("serial_no"):
 		# conditions += " and serial_no like {}".format(frappe.db.escape('%{0}%'.format(previous_sle.get("serial_no"))))
 		serial_no = previous_sle.get("serial_no")
+		# lower() both sides so the match is case-insensitive on postgres too (MariaDB's collation
+		# already is); a no-op on MariaDB. The set is already narrowed by item_code/warehouse, so the
+		# functional comparison does not cost an index here.
 		conditions += (
 			""" and
 			(
-				serial_no = {}
-				or serial_no like {}
-				or serial_no like {}
-				or serial_no like {}
+				lower(serial_no) = lower({})
+				or lower(serial_no) like lower({})
+				or lower(serial_no) like lower({})
+				or lower(serial_no) like lower({})
 			)
 		"""
 		).format(
