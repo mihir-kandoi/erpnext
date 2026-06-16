@@ -7,8 +7,8 @@ from collections import OrderedDict
 import frappe
 from frappe import _, qb
 from frappe.query_builder import Case, CustomFunction
-from frappe.query_builder.functions import Coalesce, CurDate, DateDiff, Max, Sum
-from frappe.utils import date_diff, flt, getdate
+from frappe.query_builder.functions import Coalesce, DateDiff, Max, Sum
+from frappe.utils import date_diff, flt, getdate, nowdate
 
 
 def execute(filters=None):
@@ -43,9 +43,13 @@ def get_data(filters):
 	soi = qb.DocType("Sales Order Item")
 	sii = qb.DocType("Sales Invoice Item")
 
-	# DateDiff is cross-database: DATEDIFF() on MariaDB, date subtraction on postgres. delivery_date
-	# is functionally dependent on the grouped soi.name primary key, so this is valid under both.
-	delay = DateDiff(CurDate(), soi.delivery_date)
+	# Use the application's today (nowdate, System Settings timezone) rather than the database
+	# server's CURRENT_DATE: the two differ by a day when the DB server runs in a different timezone
+	# (e.g. UTC DB + IST app near midnight), which made delay_days non-deterministic on postgres CI.
+	# DateDiff is cross-database: DATEDIFF() on MariaDB, date subtraction on postgres; it casts the
+	# string date to a date on postgres. delivery_date is functionally dependent on the grouped
+	# soi.name primary key, so this is valid under both.
+	delay = DateDiff(nowdate(), soi.delivery_date)
 	conversion_rate = Coalesce(so.conversion_rate, 1)
 
 	query = (
