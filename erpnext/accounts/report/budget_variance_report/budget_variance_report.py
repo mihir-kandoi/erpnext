@@ -3,7 +3,7 @@
 
 import frappe
 from frappe import _
-from frappe.query_builder import CustomFunction
+from frappe.query_builder.custom import MonthName
 from frappe.utils import add_months, flt, formatdate
 
 from erpnext.accounts.doctype.accounting_dimension.accounting_dimension import get_dimensions
@@ -113,7 +113,6 @@ def build_budget_map(budget_records, filters):
 
 def get_actual_transactions(dimension_name, filters):
 	budget_against = frappe.scrub(filters.get("budget_against"))
-	monthname = CustomFunction("MONTHNAME", ["date"])
 
 	gle = frappe.qb.DocType("GL Entry")
 	budget = frappe.qb.DocType("Budget")
@@ -126,7 +125,7 @@ def get_actual_transactions(dimension_name, filters):
 			gle.debit,
 			gle.credit,
 			gle.fiscal_year,
-			monthname(gle.posting_date).as_("month_name"),
+			MonthName(gle.posting_date).as_("month_name"),
 			budget[budget_against].as_("budget_against"),
 		)
 		.where(
@@ -137,7 +136,10 @@ def get_actual_transactions(dimension_name, filters):
 			& (gle.is_cancelled == 0)
 			& (budget[budget_against] == dimension_name)
 		)
-		.groupby(gle.name)
+		# budget[budget_against] is selected from the Budget table, which is not functionally
+		# dependent on the grouped GL Entry PK, so postgres requires it in the GROUP BY. The WHERE
+		# pins it to dimension_name (a constant), so grouping by it does not change the result.
+		.groupby(gle.name, budget[budget_against])
 		.orderby(gle.fiscal_year)
 	)
 
