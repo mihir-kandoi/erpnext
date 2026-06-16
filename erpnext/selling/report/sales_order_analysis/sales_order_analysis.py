@@ -114,7 +114,9 @@ def get_so_elapsed_time(data):
 		dni = qb.DocType("Delivery Note Item")
 
 		# TO_SECONDS is MariaDB-only. On postgres, subtracting dates yields days, so multiply
-		# by 86400 for the equivalent second delta.
+		# by 86400 for the equivalent second delta. so.transaction_date is neither aggregated nor
+		# in the GROUP BY, but it is selectable under postgres' strict GROUP BY because it is
+		# functionally dependent on the grouped so.name (a doctype's `name` is always the PK).
 		if frappe.db.db_type == "postgres":
 			elapsed_seconds = ((Max(dn.posting_date) - so.transaction_date) * 86400).as_("elapsed_seconds")
 		else:

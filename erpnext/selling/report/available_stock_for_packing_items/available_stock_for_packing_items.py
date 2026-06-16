@@ -12,7 +12,7 @@ def execute(filters=None):
 
 	columns = get_columns()
 	iwq_map = get_item_warehouse_quantity_map()
-	item_map = get_item_details()
+	item_map = get_item_details(list(iwq_map.keys()))
 	data = []
 	for sbom, warehouse in iwq_map.items():
 		total = 0
@@ -53,9 +53,16 @@ def get_columns():
 	return columns
 
 
-def get_item_details():
+def get_item_details(item_codes):
+	# only the bundle items actually shown in the report need detail lookup, not the whole catalogue
+	if not item_codes:
+		return {}
 	item_map = {}
-	for item in frappe.get_all("Item", fields=["name", "item_name", "description", "stock_uom"]):
+	for item in frappe.get_all(
+		"Item",
+		filters={"name": ["in", item_codes]},
+		fields=["name", "item_name", "description", "stock_uom"],
+	):
 		item_map.setdefault(item.name, item)
 	return item_map
 
@@ -76,7 +83,6 @@ def get_item_warehouse_quantity_map():
 	if not bundle_components:
 		return {}
 
-	warehouses = frappe.get_all("Warehouse", pluck="name")
 	component_items = list({c.item_code for c in bundle_components})
 
 	bin_projected = {
@@ -88,6 +94,11 @@ def get_item_warehouse_quantity_map():
 		)
 	}
 
+	# Only warehouses that hold at least one component can yield a non-zero packable qty; a warehouse
+	# missing any component yields MIN()=0 and is dropped below, so scanning every warehouse in the
+	# system is wasted work. Scope the loop to warehouses present in the Bin result.
+	bin_warehouses = {wh for (_, wh) in bin_projected}
+
 	# For each (bundle, warehouse) the number of complete bundles that can be packed is the
 	# MIN over components of (component projected_qty in that warehouse / component qty per bundle).
 	# A component with no Bin in a warehouse contributes 0 (the original UNION ALL/NOT EXISTS branch).
@@ -95,7 +106,7 @@ def get_item_warehouse_quantity_map():
 	for component in bundle_components:
 		if not component.qty:
 			continue
-		for warehouse in warehouses:
+		for warehouse in bin_warehouses:
 			qty = bin_projected.get((component.item_code, warehouse), 0) / flt(component.qty)
 			key = (component.parent, warehouse)
 			packable_qty[key] = min(packable_qty[key], qty) if key in packable_qty else qty
