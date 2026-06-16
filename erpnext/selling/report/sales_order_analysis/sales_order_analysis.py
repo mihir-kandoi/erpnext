@@ -6,8 +6,8 @@ from collections import OrderedDict
 
 import frappe
 from frappe import _, qb
-from frappe.query_builder import CustomFunction
-from frappe.query_builder.functions import Max
+from frappe.query_builder import Case, CustomFunction
+from frappe.query_builder.functions import Coalesce, CurDate, DateDiff, Max, Sum
 from frappe.utils import date_diff, flt, getdate
 
 
@@ -18,8 +18,7 @@ def execute(filters=None):
 	validate_filters(filters)
 
 	columns = get_columns(filters)
-	conditions = get_conditions(filters)
-	data = get_data(conditions, filters)
+	data = get_data(filters)
 	so_elapsed_time = get_so_elapsed_time(data)
 
 	if not data:
@@ -39,71 +38,62 @@ def validate_filters(filters):
 		frappe.throw(_("To Date cannot be before From Date."))
 
 
-def get_conditions(filters):
-	conditions = ""
-	if filters.get("from_date") and filters.get("to_date"):
-		conditions += " and so.transaction_date between %(from_date)s and %(to_date)s"
+def get_data(filters):
+	so = qb.DocType("Sales Order")
+	soi = qb.DocType("Sales Order Item")
+	sii = qb.DocType("Sales Invoice Item")
 
-	if filters.get("company"):
-		conditions += " and so.company = %(company)s"
+	# DateDiff is cross-database: DATEDIFF() on MariaDB, date subtraction on postgres. delivery_date
+	# is functionally dependent on the grouped soi.name primary key, so this is valid under both.
+	delay = DateDiff(CurDate(), soi.delivery_date)
+	conversion_rate = Coalesce(so.conversion_rate, 1)
 
-	if filters.get("sales_order"):
-		conditions += " and so.name in %(sales_order)s"
-
-	if filters.get("status"):
-		conditions += " and so.status in %(status)s"
-
-	if filters.get("warehouse"):
-		conditions += " and soi.warehouse = %(warehouse)s"
-
-	return conditions
-
-
-def get_data(conditions, filters):
-	# DATEDIFF is MariaDB-only (postgres subtracts dates directly), and MySQL's IF() plus its
-	# "(SELECT delay_days)" select-alias reference are not valid on postgres.
-	if frappe.db.db_type == "postgres":
-		delay_days = "(CURRENT_DATE - soi.delivery_date)"
-	else:
-		delay_days = "DATEDIFF(CURRENT_DATE, soi.delivery_date)"
-
-	data = frappe.db.sql(
-		f"""
-		SELECT
-			so.transaction_date as date,
-			soi.delivery_date as delivery_date,
-			so.name as sales_order,
-			so.status, so.customer, soi.item_code,
-			{delay_days} as delay_days,
-			CASE WHEN so.status in ('Completed','To Bill') THEN 0 ELSE {delay_days} END as delay,
-			soi.qty, soi.delivered_qty,
-			(soi.qty - soi.delivered_qty) AS pending_qty,
-			COALESCE(SUM(sii.qty), 0) as billed_qty,
-			soi.base_amount as amount,
-			(soi.delivered_qty * soi.base_rate) as delivered_qty_amount,
-			(soi.billed_amt * COALESCE(so.conversion_rate, 1)) as billed_amount,
-			(soi.base_amount - (soi.billed_amt * COALESCE(so.conversion_rate, 1))) as pending_amount,
-			soi.warehouse as warehouse,
-			so.company, soi.name,
-			soi.description as description
-		FROM
-			`tabSales Order` so,
-			`tabSales Order Item` soi
-		LEFT JOIN `tabSales Invoice Item` sii
-			ON sii.so_detail = soi.name and sii.docstatus = 1
-		WHERE
-			soi.parent = so.name
-			and so.status not in ('Stopped', 'On Hold')
-			and so.docstatus = 1
-			{conditions}
-		GROUP BY soi.name, so.name
-		ORDER BY so.transaction_date ASC, soi.item_code ASC
-	""",
-		filters,
-		as_dict=1,
+	query = (
+		qb.from_(so)
+		.join(soi)
+		.on(soi.parent == so.name)
+		.left_join(sii)
+		.on((sii.so_detail == soi.name) & (sii.docstatus == 1))
+		.select(
+			so.transaction_date.as_("date"),
+			soi.delivery_date.as_("delivery_date"),
+			so.name.as_("sales_order"),
+			so.status,
+			so.customer,
+			soi.item_code,
+			delay.as_("delay_days"),
+			Case().when(so.status.isin(["Completed", "To Bill"]), 0).else_(delay).as_("delay"),
+			soi.qty,
+			soi.delivered_qty,
+			(soi.qty - soi.delivered_qty).as_("pending_qty"),
+			Coalesce(Sum(sii.qty), 0).as_("billed_qty"),
+			soi.base_amount.as_("amount"),
+			(soi.delivered_qty * soi.base_rate).as_("delivered_qty_amount"),
+			(soi.billed_amt * conversion_rate).as_("billed_amount"),
+			(soi.base_amount - (soi.billed_amt * conversion_rate)).as_("pending_amount"),
+			soi.warehouse.as_("warehouse"),
+			so.company,
+			soi.name,
+			soi.description.as_("description"),
+		)
+		.where((so.status.notin(["Stopped", "On Hold"])) & (so.docstatus == 1))
+		.groupby(soi.name, so.name)
+		.orderby(so.transaction_date)
+		.orderby(soi.item_code)
 	)
 
-	return data
+	if filters.get("from_date") and filters.get("to_date"):
+		query = query.where(so.transaction_date[filters.get("from_date") : filters.get("to_date")])
+	if filters.get("company"):
+		query = query.where(so.company == filters.get("company"))
+	if filters.get("sales_order"):
+		query = query.where(so.name.isin(filters.get("sales_order")))
+	if filters.get("status"):
+		query = query.where(so.status.isin(filters.get("status")))
+	if filters.get("warehouse"):
+		query = query.where(soi.warehouse == filters.get("warehouse"))
+
+	return query.run(as_dict=True)
 
 
 def get_so_elapsed_time(data):
