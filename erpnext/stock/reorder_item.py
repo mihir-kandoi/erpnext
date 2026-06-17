@@ -105,6 +105,16 @@ def _reorder_item():
 		return create_material_request(material_requests)
 
 
+def _item_is_alive(item_table):
+	# An item counts as alive when end_of_life is unset, in the future, or the MariaDB zero-date
+	# '0000-00-00'. On postgres '0000-00-00' is an invalid date literal and a "not set" end_of_life
+	# is NULL (already covered by IS NULL), so add the zero-date term on MariaDB only.
+	alive = item_table.end_of_life.isnull() | (item_table.end_of_life > nowdate())
+	if frappe.db.db_type != "postgres":
+		alive |= item_table.end_of_life == "0000-00-00"
+	return alive
+
+
 def get_items_for_reorder() -> dict[str, list]:
 	reorder_table = frappe.qb.DocType("Item Reorder")
 	item_table = frappe.qb.DocType("Item")
@@ -130,15 +140,7 @@ def get_items_for_reorder() -> dict[str, list]:
 			item_table.has_variants,
 			item_table.lead_time_days,
 		)
-		.where(
-			(item_table.disabled == 0)
-			& (item_table.is_stock_item == 1)
-			& (
-				(item_table.end_of_life.isnull())
-				| (item_table.end_of_life > nowdate())
-				| (item_table.end_of_life == ("0000-00-00" if frappe.db.db_type != "postgres" else None))
-			)
-		)
+		.where((item_table.disabled == 0) & (item_table.is_stock_item == 1) & _item_is_alive(item_table))
 	)
 
 	data = query.run(as_dict=True)
@@ -163,11 +165,7 @@ def get_reorder_levels_for_variants(itemwise_reorder):
 		.where(
 			(item_table.disabled == 0)
 			& (item_table.is_stock_item == 1)
-			& (
-				(item_table.end_of_life.isnull())
-				| (item_table.end_of_life > nowdate())
-				| (item_table.end_of_life == ("0000-00-00" if frappe.db.db_type != "postgres" else None))
-			)
+			& _item_is_alive(item_table)
 			& (item_table.variant_of.notnull())
 		)
 	)
