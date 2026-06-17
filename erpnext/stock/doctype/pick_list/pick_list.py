@@ -902,6 +902,9 @@ def update_pick_list_status(pick_list):
 def get_picked_items_qty(items, contains_packed_items=False) -> list[dict]:
 	pi_item = frappe.qb.DocType("Pick List Item")
 
+	group_field = pi_item.product_bundle_item if contains_packed_items else pi_item.sales_order_item
+	conditions = (pi_item.docstatus == 1) & group_field.isin(items)
+
 	query = (
 		frappe.qb.from_(pi_item)
 		.select(
@@ -914,22 +917,16 @@ def get_picked_items_qty(items, contains_packed_items=False) -> list[dict]:
 			Sum(pi_item.stock_qty).as_("stock_qty"),
 			Sum(pi_item.picked_qty).as_("picked_qty"),
 		)
-		.where(pi_item.docstatus == 1)
+		.where(conditions)
+		.groupby(group_field, pi_item.sales_order)
 	)
 
-	if contains_packed_items:
-		query = query.groupby(
-			pi_item.product_bundle_item,
-			pi_item.sales_order,
-		).where(pi_item.product_bundle_item.isin(items))
+	# Lock the picked-qty rows so a concurrent pick can't change them mid-transaction. MariaDB carries
+	# the lock on the grouped query; postgres rejects FOR UPDATE with GROUP BY, so lock the same rows
+	# in a separate plain SELECT first (held for the transaction).
+	if frappe.db.db_type == "postgres":
+		frappe.qb.from_(pi_item).select(pi_item.name).where(conditions).for_update().run()
 	else:
-		query = query.groupby(
-			pi_item.sales_order_item,
-			pi_item.sales_order,
-		).where(pi_item.sales_order_item.isin(items))
-
-	# FOR UPDATE is invalid with GROUP BY on postgres; lock scanned rows on MariaDB only
-	if frappe.db.db_type != "postgres":
 		query = query.for_update()
 
 	return query.run(as_dict=True)

@@ -706,21 +706,26 @@ def get_available_qty_to_reserve(
 
 	if available_qty:
 		sre = frappe.qb.DocType("Stock Reservation Entry")
+		conditions = (
+			(sre.docstatus == 1)
+			& (sre.item_code == item_code)
+			& (sre.warehouse == warehouse)
+			& (sre.delivered_qty < sre.reserved_qty)
+		)
+		if ignore_sre:
+			conditions &= sre.name != ignore_sre
+
+		# Lock the rows being aggregated so a concurrent reservation can't change them mid-transaction.
+		# MariaDB carries the lock on the aggregate query itself; postgres rejects FOR UPDATE with an
+		# aggregate, so on postgres lock the same rows in a separate plain SELECT first (held for the txn).
+		if frappe.db.db_type == "postgres":
+			frappe.qb.from_(sre).select(sre.name).where(conditions).for_update().run()
+
 		query = (
 			frappe.qb.from_(sre)
 			.select(Sum(sre.reserved_qty - sre.delivered_qty - sre.transferred_qty - sre.consumed_qty))
-			.where(
-				(sre.docstatus == 1)
-				& (sre.item_code == item_code)
-				& (sre.warehouse == warehouse)
-				& (sre.delivered_qty < sre.reserved_qty)
-			)
+			.where(conditions)
 		)
-
-		if ignore_sre:
-			query = query.where(sre.name != ignore_sre)
-
-		# FOR UPDATE is invalid with aggregates on postgres; lock scanned rows on MariaDB only
 		if frappe.db.db_type != "postgres":
 			query = query.for_update()
 
