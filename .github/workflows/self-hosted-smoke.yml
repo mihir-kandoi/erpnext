@@ -1,0 +1,16 @@
+name: Self-hosted Smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: [self-hosted, Mihirs-MacBook-Air]
+    steps:
+      - run: |
+          whoami
+          uname -a
+          pwd
