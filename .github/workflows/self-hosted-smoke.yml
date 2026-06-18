@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   smoke:
-    runs-on: [self-hosted, Mihirs-MacBook-Air]
+    runs-on: [self-hosted, macOS]
     steps:
       - run: |
           whoami
