@@ -94,9 +94,6 @@ jobs:
       TZ: Asia/Kolkata
       NODE_ENV: production
       CI_SLOT: ${{ matrix.container }}
-      DB_PORT: ${{ job.services.mysql.ports[3306] }}
-      REDIS_CACHE_PORT: ${{ job.services.redis-cache.ports[6379] }}
-      REDIS_QUEUE_PORT: ${{ job.services.redis-queue.ports[6379] }}
       FRAPPE_BRANCH: develop
 
     steps:
@@ -145,6 +142,10 @@ jobs:
           fi
 
       - name: Prepare warm bench
+        env:
+          DB_PORT: ${{ job.services.mysql.ports['3306'] }}
+          REDIS_CACHE_PORT: ${{ job.services.redis-cache.ports['6379'] }}
+          REDIS_QUEUE_PORT: ${{ job.services.redis-queue.ports['6379'] }}
         run: bash "$GITHUB_WORKSPACE/.github/helper/fast-self-hosted-mariadb.sh"
 
       - name: Run shard
