@@ -111,6 +111,9 @@ def get_data(filters, conditions):
 		elif filters.get("group_by") == "Supplier":
 			sel_col = "t1.supplier"
 
+		# first column of the multi-column group_by = the based-on key the detail queries equate against
+		based_on_key = conditions["group_by"].split(",")[0].strip()
+
 		if filters.get("based_on") in ["Customer", "Supplier"]:
 			inc = 3
 		elif filters.get("based_on") in ["Item"]:
@@ -160,7 +163,7 @@ def get_data(filters, conditions):
 					posting_date,
 					"%s",
 					"%s",
-					conditions["group_by"],
+					based_on_key,
 					"%s",
 					conditions.get("addl_tables_relational_cond"),
 					cond,
@@ -177,6 +180,7 @@ def get_data(filters, conditions):
 					""" select t4.default_currency AS currency , {} , {} from `tab{}` t1, `tab{} Item` t2 {}
 							where t2.parent = t1.name and t1.company = {} and {} between {} and {}
 							and t1.docstatus = 1 and {} = {} and {} = {} {} {}
+							group by t4.default_currency, {}
 						""".format(
 						sel_col,
 						conditions["period_wise_select"],
@@ -189,10 +193,11 @@ def get_data(filters, conditions):
 						"%s",
 						sel_col,
 						"%s",
-						conditions["group_by"],
+						based_on_key,
 						"%s",
 						conditions.get("addl_tables_relational_cond"),
 						cond,
+						sel_col,
 					),
 					(filters.get("company"), year_start_date, year_end_date, row[i][0], data1[d][0]),
 					as_list=1,
