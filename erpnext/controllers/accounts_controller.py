@@ -123,7 +123,7 @@ class AccountsController(TransactionBase):
 
 		The framework copies `no_copy` fields when amending, so a reconciled
 		voucher would carry a stale clearance date into its amendment even though
-		the linked bank transaction gets unreconciled on cancellation.
+		the linked bank transaction gets unreconciled on cancellation..
 		"""
 		if not self.get("amended_from"):
 			return
