@@ -10,7 +10,7 @@ import frappe
 from frappe import _, bold, scrub
 from frappe.model.meta import get_field_precision
 from frappe.query_builder import Order
-from frappe.query_builder.functions import Sum
+from frappe.query_builder.functions import Lower, Sum
 from frappe.utils import (
 	cint,
 	flt,
@@ -1491,10 +1491,10 @@ class update_entries_after:
 					& (sle_entry.actual_qty > 0)
 					& (sle_entry.is_cancelled == 0)
 					& (
-						(sle_entry.serial_no == serial_no)
-						| sle_entry.serial_no.like(serial_no + "\n%")
-						| sle_entry.serial_no.like("%\n" + serial_no)
-						| sle_entry.serial_no.like("%\n" + serial_no + "\n%")
+						(Lower(sle_entry.serial_no) == serial_no.lower())
+						| Lower(sle_entry.serial_no).like((serial_no + "\n%").lower())
+						| Lower(sle_entry.serial_no).like(("%\n" + serial_no).lower())
+						| Lower(sle_entry.serial_no).like(("%\n" + serial_no + "\n%").lower())
 					)
 				)
 				.orderby(sle_entry.posting_date, order=frappe.qb.desc)

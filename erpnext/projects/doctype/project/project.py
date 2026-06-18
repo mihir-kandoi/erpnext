@@ -6,7 +6,7 @@ from email_reply_parser import EmailReplyParser
 from frappe import _, qb
 from frappe.model.document import Document
 from frappe.query_builder import Case, Interval
-from frappe.query_builder.functions import Count, CurDate, Date, Locate, Sum, UnixTimestamp
+from frappe.query_builder.functions import Count, CurDate, Date, Locate, Lower, Sum, UnixTimestamp
 from frappe.utils import add_days, flt, get_datetime, get_link_to_form, get_time, nowtime, today
 from frappe.utils.user import is_website_user
 from pypika import Order
@@ -514,11 +514,19 @@ def get_users_for_project(doctype: str, txt: str, searchfield: str, start: int, 
 		.where(User.name.notin(["Guest", "Administrator"]))
 		.where(User[searchfield].like(search_str) | User.full_name.like(search_str))
 		.orderby(
-			Case().when(Locate(txt_no_percent, User.name) > 0, Locate(txt_no_percent, User.name)).else_(99999)
+			Case()
+			.when(
+				Locate(Lower(txt_no_percent), Lower(User.name)) > 0,
+				Locate(Lower(txt_no_percent), Lower(User.name)),
+			)
+			.else_(99999)
 		)
 		.orderby(
 			Case()
-			.when(Locate(txt_no_percent, User.full_name) > 0, Locate(txt_no_percent, User.full_name))
+			.when(
+				Locate(Lower(txt_no_percent), Lower(User.full_name)) > 0,
+				Locate(Lower(txt_no_percent), Lower(User.full_name)),
+			)
 			.else_(99999)
 		)
 		.orderby(User.idx, order=Order.desc)

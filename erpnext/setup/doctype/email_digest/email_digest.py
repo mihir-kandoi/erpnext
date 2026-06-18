@@ -235,7 +235,7 @@ class EmailDigest(Document):
 			.select(todo.star)
 			.where(((todo.owner == user_id) | (todo.assigned_by == user_id)) & (todo.status == "Open"))
 			.orderby(priority_order)
-			.orderby(todo.date)
+			.orderby(IfNull(todo.date, "9999-12-31"))
 			.limit(20)
 			.run(as_dict=True)
 		)

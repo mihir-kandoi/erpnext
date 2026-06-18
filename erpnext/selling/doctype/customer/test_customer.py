@@ -3,6 +3,7 @@
 
 
 import json
+import re
 
 import frappe
 from frappe.utils import flt
@@ -219,6 +220,30 @@ class TestCustomer(ERPNextTestSuite):
 		self.assertEqual("_Test Customer 1", test_customer_1.name)
 		self.assertEqual("_Test Customer 1 - 1", duplicate_customer.name)
 		self.assertEqual(test_customer_1.customer_name, duplicate_customer.customer_name)
+
+	def test_autoname_with_non_numeric_trailing_token(self):
+		# Regression: the duplicate-name suffix extraction must tolerate a sibling whose name ends in a
+		# NON-numeric token (e.g. "<base> - Foo"). On Postgres the suffix is extracted via
+		# regexp_replace + CAST(... AS INTEGER); a non-numeric trailing token must yield NULL (skipped by
+		# MAX, floored to 0 by COALESCE) rather than raise, matching MariaDB's CAST(... AS UNSIGNED) -> 0.
+		# Before the fix the query raised on Postgres for any such sibling.
+		base_name = "_Test Customer NonNumericSuffix"
+
+		# clear residue from a previous run so the scenario is deterministic
+		for existing in frappe.get_all("Customer", filters={"customer_name": base_name}, pluck="name"):
+			frappe.delete_doc("Customer", existing, force=True, ignore_permissions=True)
+
+		# keep the base name occupied (forces the suffix path) and give it a non-numeric sibling
+		frappe.get_doc(get_customer_dict(base_name)).insert(ignore_permissions=True)  # -> base
+		sibling = frappe.get_doc(get_customer_dict(base_name)).insert(
+			ignore_permissions=True
+		)  # -> "<base> - 1"
+		frappe.rename_doc("Customer", sibling.name, f"{base_name} - Foo", force=True)
+
+		# Inserting another customer with the same name runs MAX(suffix) over "<base> - Foo"; on Postgres
+		# the old raw CAST of "Foo" to INTEGER raised — this must now autoname without error on both engines.
+		duplicate = frappe.get_doc(get_customer_dict(base_name)).insert(ignore_permissions=True)
+		self.assertRegex(duplicate.name, rf"^{re.escape(base_name)} - \d+$")
 
 	def get_customer_outstanding_amount(self):
 		from erpnext.selling.doctype.sales_order.test_sales_order import make_sales_order
