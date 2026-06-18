@@ -6,7 +6,6 @@ import copy
 
 import frappe
 from frappe import _
-from frappe.desk.reportview import get_match_conditions_qb
 from frappe.model.document import Document
 from frappe.utils import add_days, add_months, format_date, getdate, today
 from frappe.utils.jinja import validate_template
@@ -20,6 +19,7 @@ from erpnext.accounts.report.accounts_receivable_summary.accounts_receivable_sum
 	execute as get_ageing,
 )
 from erpnext.accounts.report.general_ledger.general_ledger import execute as get_soa
+from erpnext.utilities.query import get_match_conditions_qb
 
 
 class ProcessStatementOfAccounts(Document):

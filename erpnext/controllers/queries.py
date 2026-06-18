@@ -7,7 +7,6 @@ from collections import OrderedDict, defaultdict
 
 import frappe
 from frappe import qb, scrub
-from frappe.desk.reportview import get_filter_conditions_qb, get_match_conditions_qb
 from frappe.permissions import has_permission
 from frappe.query_builder import Case, Criterion, DocType
 from frappe.query_builder.functions import (
@@ -26,6 +25,7 @@ import erpnext
 from erpnext.accounts.utils import build_qb_match_conditions
 from erpnext.stock.get_item_details import ItemDetailsCtx, _get_item_tax_template
 from erpnext.stock.utils import get_combine_datetime
+from erpnext.utilities.query import get_filter_conditions_qb
 
 
 # searches for active employees
@@ -865,20 +865,19 @@ def warehouse_query(doctype: str, txt: str, searchfield: str, start: int, page_l
 	for condition in get_filter_conditions_qb("Bin", filter_dict.get("Bin")):
 		join_condition &= condition
 
+	# Base the query on Warehouse so get_query applies its user-permission match conditions;
+	# Bin is left-joined (its filters on the JOIN) so warehouses without a Bin row still match.
 	query = (
-		frappe.qb.from_(wh)
+		frappe.qb.get_query("Warehouse", fields=[warehouse_field], ignore_permissions=False)
 		.left_join(bin_dt)
 		.on(join_condition)
 		.select(
-			wh[warehouse_field],
 			Concat("Actual Qty", " : ", IfNull(Round(bin_dt.actual_qty, 2), 0)).as_("actual_qty"),
 		)
 		.where(wh[searchfield].like(f"%{txt}%"))
 	)
 
 	for condition in get_filter_conditions_qb("Warehouse", filter_dict.get("Warehouse")):
-		query = query.where(condition)
-	for condition in get_match_conditions_qb("Warehouse"):
 		query = query.where(condition)
 
 	return (

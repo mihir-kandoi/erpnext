@@ -503,7 +503,7 @@ def get_events(start: str, end: str, filters: str | None = None):
 	:param end: End date-time.
 	:param filters: Filters (JSON).
 	"""
-	from frappe.desk.calendar import get_event_conditions
+	from erpnext.utilities.query import get_event_conditions_qb
 
 	filters = json.loads(filters) if filters else {}
 
@@ -529,7 +529,7 @@ def get_events(start: str, end: str, filters: str | None = None):
 	)
 
 	# user-permission match conditions + calendar filters on Timesheet (query-builder form)
-	for condition in get_event_conditions("Timesheet", filters, as_qb=True):
+	for condition in get_event_conditions_qb("Timesheet", filters):
 		query = query.where(condition)
 
 	return query.run(as_dict=True, update={"allDay": 0})
