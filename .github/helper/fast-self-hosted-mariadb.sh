@@ -8,9 +8,29 @@ SNAPSHOT="$CACHE_ROOT/test_site.sql.gz"
 DEPS_HASH_FILE="$CACHE_ROOT/deps.hash"
 LOCK="$CACHE_ROOT.lock"
 
+require_command() {
+	if ! command -v "$1" >/dev/null; then
+		echo "Missing required runner command: $1"
+		echo "Install runner prerequisites on the VM, then rerun this workflow."
+		exit 1
+	fi
+}
+
+require_command flock
 mkdir -p "$CACHE_ROOT"
 exec 9>"$LOCK"
 flock 9
+
+check_runner_prerequisites() {
+	require_command crontab
+	require_command git
+	require_command gzip
+	require_command mariadb
+	require_command mariadb-dump
+	require_command python
+	require_command sha256sum
+	require_command wkhtmltopdf
+}
 
 mysql_root() {
 	mariadb -h 127.0.0.1 -P "$DB_PORT" -uroot -proot "$@"
@@ -73,10 +93,11 @@ ensure_requirements() {
 }
 
 ensure_bench() {
-	if [ -d "$BENCH" ]; then
+	if [ -x "$BENCH/env/bin/python" ] && [ -d "$BENCH/apps/frappe" ] && [ -d "$BENCH/apps/payments" ] && [ -d "$BENCH/apps/erpnext" ]; then
 		return
 	fi
 
+	rm -rf "$BENCH" "$FRAPPE_REPO"
 	python -m pip install --upgrade pip frappe-bench
 	git clone --depth 1 --branch "$FRAPPE_BRANCH" https://github.com/frappe/frappe "$FRAPPE_REPO"
 	bench init --skip-assets --frappe-path "$FRAPPE_REPO" --python "$(command -v python)" "$BENCH"
@@ -140,6 +161,7 @@ ensure_snapshot() {
 	mv "$SNAPSHOT.tmp" "$SNAPSHOT"
 }
 
+check_runner_prerequisites
 ensure_bench
 cd "$BENCH"
 
