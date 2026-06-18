@@ -128,7 +128,12 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 24
-          cache: yarn
+
+      - name: Enable Yarn
+        run: |
+          corepack enable
+          corepack prepare yarn@1.22.22 --activate
+          yarn --version
 
       - name: Add test site host
         run: echo "127.0.0.1 test_site" | sudo tee -a /etc/hosts
