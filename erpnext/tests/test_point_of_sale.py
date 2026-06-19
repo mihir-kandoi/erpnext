@@ -1,14 +1,37 @@
 # Copyright (c) 2022, Frappe Technologies Pvt. Ltd. and Contributors
 # MIT License. See license.txt
 
+import frappe
+
 from erpnext.accounts.doctype.pos_profile.test_pos_profile import make_pos_profile
-from erpnext.selling.page.point_of_sale.point_of_sale import get_items
+from erpnext.selling.page.point_of_sale.point_of_sale import get_items, item_group_query
 from erpnext.stock.doctype.item.test_item import make_item
 from erpnext.stock.doctype.stock_entry.stock_entry_utils import make_stock_entry
 from erpnext.tests.utils import ERPNextTestSuite
 
 
 class TestPointOfSale(ERPNextTestSuite):
+	def test_item_group_query_returns_matching_groups(self):
+		"""Original raw SQL had no ORDER BY; the get_all conversion injected the doctype default
+		`creation desc` on MariaDB (stripped under DISTINCT on Postgres), changing typeahead order on
+		MariaDB and making the engines disagree. order_by="" restores the original unordered query on
+		both. This covers the previously-untested function and guards the filtered result set."""
+		root = (
+			frappe.db.get_value("Item Group", {"is_group": 1, "parent_item_group": ""}, "name")
+			or "All Item Groups"
+		)
+		names = [f"_Test POS IG Query {i}" for i in range(3)]
+		for n in names:
+			if not frappe.db.exists("Item Group", n):
+				frappe.get_doc(
+					{"doctype": "Item Group", "item_group_name": n, "parent_item_group": root, "is_group": 0}
+				).insert(ignore_permissions=True)
+
+		rows = item_group_query("Item Group", "_Test POS IG Query", "name", 0, 20, {})
+		got = {r[0] for r in rows}
+		for n in names:
+			self.assertIn(n, got)
+
 	def test_item_search(self):
 		"""
 		Test Stock and Service Item Search.

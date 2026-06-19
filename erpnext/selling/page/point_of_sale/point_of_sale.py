@@ -327,6 +327,7 @@ def item_group_query(doctype: str, txt: str, searchfield: str, start: int, page_
 		filters=item_filters,
 		fields=["name"],
 		distinct=True,
+		order_by="",  # original raw SQL had no ORDER BY; suppress the injected default (creation desc on MariaDB)
 		limit_start=start,
 		limit_page_length=page_len,
 		as_list=True,
