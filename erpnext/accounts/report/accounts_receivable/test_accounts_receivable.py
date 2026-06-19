@@ -4,7 +4,10 @@ from frappe.utils import add_days, flt, getdate, today
 
 from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
 from erpnext.accounts.doctype.sales_invoice.test_sales_invoice import create_sales_invoice
-from erpnext.accounts.report.accounts_receivable.accounts_receivable import execute
+from erpnext.accounts.report.accounts_receivable.accounts_receivable import (
+	ReceivablePayableReport,
+	execute,
+)
 from erpnext.accounts.test.accounts_mixin import AccountsTestMixin
 from erpnext.selling.doctype.sales_order.test_sales_order import make_sales_order
 from erpnext.tests.utils import ERPNextTestSuite
@@ -695,6 +698,64 @@ class TestAccountsReceivable(ERPNextTestSuite, AccountsTestMixin):
 				expected_data[idx],
 				[row.invoiced, row.paid, row.outstanding, row.remaining_balance, row.future_amount],
 			)
+
+	def test_future_payments_from_journal_entry_per_invoice(self):
+		"""The JE future-payment query has no GROUP BY: it collapses every future Journal Entry
+		Account into one row via independent Max(reference_name)/Max(party). With two invoices
+		referenced in future JEs, only one (Max) invoice receives the entire summed amount and the
+		other invoice's future payment is lost. The consumer keys future_payments[(invoice_no, party)]
+		per voucher, so each invoice must get its own row. (Both engines produce the same collapsed
+		row, so this is a correctness fix, not a parity gap.)"""
+		si_a = self.create_sales_invoice(no_payment_schedule=True)
+		si_b = self.create_sales_invoice(no_payment_schedule=True)
+
+		je = frappe.get_doc(
+			{
+				"doctype": "Journal Entry",
+				"voucher_type": "Journal Entry",
+				"company": self.company,
+				"posting_date": add_days(today(), 1),
+				"accounts": [
+					{
+						"account": self.debit_to,
+						"party_type": "Customer",
+						"party": self.customer,
+						"reference_type": "Sales Invoice",
+						"reference_name": si_a.name,
+						"credit_in_account_currency": 100,
+						"credit": 100,
+					},
+					{
+						"account": self.debit_to,
+						"party_type": "Customer",
+						"party": self.customer,
+						"reference_type": "Sales Invoice",
+						"reference_name": si_b.name,
+						"credit_in_account_currency": 50,
+						"credit": 50,
+					},
+					{"account": self.cash, "debit_in_account_currency": 150, "debit": 150},
+				],
+			}
+		).insert()
+		je.submit()
+
+		report = ReceivablePayableReport(
+			{
+				"company": self.company,
+				"report_date": today(),
+				"account_type": "Receivable",
+				"range": "30, 60, 90, 120",
+			}
+		)
+		report.set_defaults()
+		by_invoice = {
+			(r.invoice_no, r.party): r.future_amount for r in report.get_future_payments_from_journal_entry()
+		}
+
+		# each invoice must carry its own future amount, not collapse onto one Max() row
+		self.assertEqual(by_invoice.get((si_a.name, self.customer)), 100)
+		self.assertEqual(by_invoice.get((si_b.name, self.customer)), 50)
 
 	def test_sales_person(self):
 		sales_person = frappe.get_doc(
