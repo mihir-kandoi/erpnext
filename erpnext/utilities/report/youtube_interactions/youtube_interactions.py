@@ -30,24 +30,23 @@ def get_columns():
 
 
 def get_data(filters):
-	return frappe.get_all(
-		"Video",
-		filters={
-			"view_count": ["is", "set"],
-			"publish_date": ["between", [filters.get("from_date"), filters.get("to_date")]],
-		},
-		fields=[
-			"publish_date",
-			"title",
-			"provider",
-			"duration",
-			"view_count",
-			"like_count",
-			"dislike_count",
-			"comment_count",
-		],
-		order_by="view_count desc",
-	)
+	video = frappe.qb.DocType("Video")
+	return (
+		frappe.qb.from_(video)
+		.select(
+			video.publish_date,
+			video.title,
+			video.provider,
+			video.duration,
+			video.view_count,
+			video.like_count,
+			video.dislike_count,
+			video.comment_count,
+		)
+		.where(video.view_count.isnotnull())
+		.where(video.publish_date[filters.get("from_date") : filters.get("to_date")])
+		.orderby(video.view_count, order=frappe.qb.desc)
+	).run(as_dict=True)
 
 
 def get_chart_summary_data(data):
