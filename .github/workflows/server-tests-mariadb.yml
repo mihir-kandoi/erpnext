@@ -44,8 +44,8 @@ jobs:
     container:
       image: ghcr.io/mihir-kandoi/erpnext-ci-mariadb:py3.14-node24
       credentials:
-        username: ${{ github.actor }}
-        password: ${{ github.token }}
+        username: ${{ secrets.GHCR_USERNAME || github.actor }}
+        password: ${{ secrets.GHCR_TOKEN || github.token }}
       options: --cpus 2 --memory 6g
       volumes:
         - /opt/erpnext-ci-cache/pip:/github/home/.cache/pip
