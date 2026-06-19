@@ -166,7 +166,8 @@ def get_customer_stats(filters, tree_view=False):
 		"Sales Invoice",
 		filters=si_filters,
 		fields=["territory", "posting_date", "customer", "base_grand_total"],
-		order_by="posting_date",
+		# name tie-break makes the first-seen-per-customer classification deterministic across engines
+		order_by="posting_date, name",
 	):
 		key = si.territory if tree_view else si.posting_date.strftime("%Y-%m")
 		new_or_repeat = "new" if si.customer not in customers else "repeat"
