@@ -23,6 +23,8 @@ run_as_ci_user_if_needed() {
         useradd --home-dir "$HOME" --no-create-home --shell /bin/bash "$ci_user"
     fi
 
+    rm -rf ~/frappe ~/frappe-bench
+
     local ci_dirs=(
         "$HOME"
         "$GITHUB_WORKSPACE"
