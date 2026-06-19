@@ -12,6 +12,35 @@ from erpnext.tests.utils import ERPNextTestSuite
 
 
 class TestProject(ERPNextTestSuite):
+	def test_get_users_for_project_description_is_engine_consistent(self):
+		"""The autocomplete description column. The original SQL used
+		concat_ws(' ', first, middle, last), but that is NOT portable: MariaDB stores an empty
+		middle_name as '' (concat_ws -> 'John  Doe', two spaces) while Postgres stores '' as NULL
+		(concat_ws -> 'John Doe'), so concat_ws would make the two engines disagree. The conversion
+		selects the Python-computed stored full_name instead, which is 'John Doe' on BOTH engines --
+		the cross-engine-consistent choice. This guards that selection (do not revert to concat_ws)."""
+		from erpnext.projects.doctype.project.project import get_users_for_project
+
+		email = "_test_emptymid@example.com"
+		if not frappe.db.exists("User", email):
+			frappe.get_doc(
+				{
+					"doctype": "User",
+					"email": email,
+					"first_name": "John",
+					"middle_name": "",
+					"last_name": "Doe",
+					"enabled": 1,
+					"send_welcome_email": 0,
+				}
+			).insert(ignore_permissions=True)
+
+		rows = get_users_for_project("Project", "john", "name", 0, 20, {})
+		row = next((r for r in rows if r[0] == email), None)
+		self.assertIsNotNone(row, "seeded user not returned by project user search")
+		# identical on MariaDB and Postgres (stored full_name), unlike the non-portable concat_ws
+		self.assertEqual(row[1], "John Doe")
+
 	def test_project_total_costing_and_billing_amount(self):
 		from erpnext.projects.doctype.timesheet.test_timesheet import make_timesheet
 		from erpnext.setup.doctype.employee.test_employee import make_employee
