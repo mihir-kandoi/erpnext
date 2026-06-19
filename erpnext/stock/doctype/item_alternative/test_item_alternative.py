@@ -299,6 +299,47 @@ class TestItemAlternative(ERPNextTestSuite):
 		self.assertEqual(len(page), 1)
 		self.assertEqual(page[0], full[1])
 
+	def test_get_alternative_items_pagination_is_bounded_and_exact(self):
+		"""Each get_all is bounded to start+page_len rows, so the DB round trip stays small
+		instead of fetching every alternative per keystroke. Walking the result in small pages
+		must still reconstruct the complete deduped set — including an alternate that appears in
+		BOTH legs (forward + reverse two_way) — with no item dropped or duplicated by the bound."""
+		suffix = random_string(8)
+		base = f"_Test IA Bound Base {suffix}"
+		forwards = [f"_Test IA Bound Fwd {i} {suffix}" for i in range(3)]
+		reverses = [f"_Test IA Bound Rev {i} {suffix}" for i in range(3)]
+		dup = f"_Test IA Bound Dup {suffix}"  # forward AND reverse two_way -> deduped across legs
+
+		for item_code in [base, dup, *forwards, *reverses]:
+			create_item(item_code)
+			item = frappe.get_doc("Item", item_code)
+			if not item.allow_alternative_item:
+				item.allow_alternative_item = 1
+				item.save()
+
+		for fwd in forwards:
+			make_item_alternative(base, fwd, two_way=0)
+		make_item_alternative(base, dup, two_way=1)  # dup via the forward leg
+		for rev in reverses:
+			make_item_alternative(rev, base, two_way=1)
+		make_item_alternative(dup, base, two_way=1)  # dup also via the reverse leg
+
+		full = [row[0] for row in get_alternative_items("Item", suffix, "name", 0, 50, {"item_code": base})]
+		# 3 forward + 3 reverse + the single deduped dup = 7 distinct
+		self.assertEqual(len(full), 7)
+		self.assertEqual(full.count(dup), 1)
+
+		# walk in pages of 2; bounded fetches must yield exactly the same set, once each
+		collected = []
+		for start in range(0, 8, 2):
+			collected += [
+				row[0] for row in get_alternative_items("Item", suffix, "name", start, 2, {"item_code": base})
+			]
+
+		self.assertEqual(len(collected), len(set(collected)))  # no duplicates introduced by paging
+		self.assertEqual(set(collected), set(full))  # nothing dropped by the per-leg limit
+		self.assertEqual(collected.count(dup), 1)  # the cross-leg dup survives exactly once
+
 
 def make_item_alternative(item_code, alternative_item_code, two_way=0):
 	doc = frappe.get_doc(

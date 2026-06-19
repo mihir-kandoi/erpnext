@@ -7,6 +7,7 @@ from typing import Any
 import frappe
 from frappe import _
 from frappe.model.document import Document
+from frappe.utils import cint
 
 
 class ItemAlternative(Document):
@@ -88,16 +89,20 @@ class ItemAlternative(Document):
 def get_alternative_items(doctype: Any, txt: str, searchfield: Any, start: int, page_len: int, filters: dict):
 	item_code = filters.get("item_code")
 	search = f"%{txt}%"
+	# each leg has distinct values (validate_duplicate), so start+page_len rows per leg suffice
+	limit = cint(start) + cint(page_len)
 
 	alternatives = frappe.get_all(
 		"Item Alternative",
 		filters={"item_code": item_code, "alternative_item_code": ["like", search]},
 		pluck="alternative_item_code",
+		limit=limit,
 	)
 	alternatives += frappe.get_all(
 		"Item Alternative",
 		filters={"alternative_item_code": item_code, "item_code": ["like", search], "two_way": 1},
 		pluck="item_code",
+		limit=limit,
 	)
 
 	# union (dedupe, preserve order) + paginate
