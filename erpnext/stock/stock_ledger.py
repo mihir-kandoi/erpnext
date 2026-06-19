@@ -1498,6 +1498,8 @@ class update_entries_after:
 					)
 				)
 				.orderby(sle_entry.posting_date, order=frappe.qb.desc)
+				.orderby(sle_entry.creation, order=frappe.qb.desc)
+				.orderby(sle_entry.name, order=frappe.qb.desc)
 				.limit(1)
 			).run()
 

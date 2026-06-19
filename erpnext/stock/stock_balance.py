@@ -318,7 +318,8 @@ def set_stock_balance_as_per_serial_no(
 			"Stock Ledger Entry",
 			filters={"item_code": d[0], "warehouse": d[1], "is_cancelled": 0},
 			fields=["valuation_rate", "company"],
-			order_by="posting_date desc",
+			# total order so the latest SLE is picked identically on both engines (was posting_date only)
+			order_by="posting_date desc, creation desc, name desc",
 			limit=1,
 			as_list=True,
 		)

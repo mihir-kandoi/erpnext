@@ -34,6 +34,54 @@ class TestStockLedgerEntry(ERPNextTestSuite, StockTestMixin):
 		create_items()
 		reset("Stock Entry")
 
+	def test_incoming_value_for_transferred_serial_no_is_deterministic(self):
+		"""get_incoming_value_for_serial_nos picks the latest SLE (posting_date desc, limit 1) for a
+		serial transferred to another company. posting_date alone is non-total, so two same-date SLEs
+		with different incoming_rate could be resolved differently on MariaDB vs Postgres. creation/name
+		tie-breaks make the latest SLE win identically on both engines."""
+		from erpnext.stock.stock_ledger import update_entries_after
+
+		item = "_Test Serialized Item"
+		serial = "_Test SN Tie 9"
+		company_a, company_b = "_Test Company", "_Test Company 1"
+		if frappe.db.exists("Serial No", serial):
+			frappe.delete_doc("Serial No", serial, force=1)
+		frappe.get_doc(
+			{"doctype": "Serial No", "serial_no": serial, "item_code": item, "company": company_b}
+		).insert(ignore_permissions=True)
+
+		def mk_sle(name, rate):
+			if frappe.db.exists("Stock Ledger Entry", name):
+				frappe.delete_doc("Stock Ledger Entry", name, force=1)
+			doc = frappe.get_doc(
+				{
+					"doctype": "Stock Ledger Entry",
+					"item_code": item,
+					"warehouse": "_Test Warehouse - _TC",
+					"company": company_a,
+					"posting_date": "2026-06-01",
+					"posting_time": "10:00:00",
+					"actual_qty": 1,
+					"incoming_rate": rate,
+					"is_cancelled": 0,
+					"serial_no": serial,
+					"voucher_type": "Stock Entry",
+					"voucher_no": "TEST-TIE",
+				}
+			)
+			doc.name = name
+			doc.flags.name_set = True
+			doc.db_insert()
+
+		mk_sle("MAT-SLE-TIE-A", 100)
+		mk_sle("MAT-SLE-TIE-B", 200)  # later/larger name -> deterministic winner
+
+		value = update_entries_after.get_incoming_value_for_serial_nos(
+			None, frappe._dict(company=company_a), [serial]
+		)
+		# the latest (creation/name desc) same-date SLE wins -> 200 on both engines
+		self.assertEqual(value, 200.0)
+
 	def test_item_cost_reposting(self):
 		company = "_Test Company"
 
