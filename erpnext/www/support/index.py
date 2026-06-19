@@ -38,6 +38,8 @@ def get_favorite_articles_by_page_view():
 		.inner_join(wpv)
 		.on(ha.route == wpv.path)
 		.select(
+			# route is the unique page URL, so there is one published article per route: Max() just
+			# returns that row's columns while keeping the GROUP BY route valid on postgres
 			Max(ha.name).as_("name"),
 			Max(ha.title).as_("title"),
 			Max(ha.content).as_("content"),
