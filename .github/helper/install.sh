@@ -12,6 +12,42 @@ db_user_host=${DB_USER_HOST:-"localhost"}
 wkhtmltox_deb=${WKHTMLTOX_DEB:-"/tmp/wkhtmltox.deb"}
 bench_cache_dir=${BENCH_CACHE_DIR:-}
 
+run_as_ci_user_if_needed() {
+    if [ "$(id -u)" != "0" ] || [ "${SKIP_SYSTEM_SETUP:-0}" != "1" ] || [ "${ERPNEXT_CI_NON_ROOT:-0}" = "1" ]; then
+        return
+    fi
+
+    local ci_user="${ERPNEXT_CI_USER:-frappe}"
+
+    if ! id "$ci_user" >/dev/null 2>&1; then
+        useradd --home-dir "$HOME" --no-create-home --shell /bin/bash "$ci_user"
+    fi
+
+    local ci_dirs=(
+        "$HOME"
+        "$GITHUB_WORKSPACE"
+        "${PIP_CACHE_DIR:-$HOME/.cache/pip}"
+        "${npm_config_cache:-$HOME/.npm}"
+        "${YARN_CACHE_FOLDER:-$HOME/.cache/yarn}"
+        "$(dirname "$wkhtmltox_deb")"
+    )
+    if [ -n "$bench_cache_dir" ]; then
+        ci_dirs+=("$bench_cache_dir")
+    fi
+
+    mkdir -p "${ci_dirs[@]}"
+    chown "$ci_user:$ci_user" "${ci_dirs[@]}"
+
+    export ERPNEXT_CI_NON_ROOT=1
+    exec su -m "$ci_user" -s /bin/bash -c "cd '$HOME' && bash '$GITHUB_WORKSPACE/.github/helper/install.sh'"
+}
+
+run_as_ci_user_if_needed
+
+if [ -n "${GITHUB_WORKSPACE:-}" ]; then
+    git config --global --add safe.directory "$GITHUB_WORKSPACE" || true
+fi
+
 # ---------------------------------------------------------------------------
 # Phase 1 — parallelise the three slow, independent setup steps:
 #   a) system packages   b) frappe-bench pip install   c) frappe git fetch

@@ -116,6 +116,7 @@ jobs:
 
       - name: Run Tests
         run: |
+          su -m "${ERPNEXT_CI_USER:-frappe}" -s /bin/bash <<'EOF'
           cd ~/frappe-bench/
           coverage_flag=""
           if [ "$WITH_COVERAGE" = "true" ]; then coverage_flag="--with-coverage"; fi
@@ -123,6 +124,7 @@ jobs:
             --total-builds 6 \
             --build-number ${{ matrix.container }} \
             $coverage_flag
+          EOF
         env:
           TYPE: server
 
