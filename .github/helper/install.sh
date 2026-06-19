@@ -17,6 +17,19 @@ run_as_ci_user_if_needed() {
         return
     fi
 
+    local missing_packages=()
+    if ! command -v pkg-config >/dev/null 2>&1; then
+        missing_packages+=("pkg-config")
+    fi
+    if ! command -v mariadb_config >/dev/null 2>&1 && ! command -v mysql_config >/dev/null 2>&1; then
+        missing_packages+=("libmariadb-dev")
+    fi
+
+    if [ "${#missing_packages[@]}" -gt 0 ]; then
+        apt-get update
+        apt-get install -y --no-install-recommends "${missing_packages[@]}"
+    fi
+
     local ci_user="${ERPNEXT_CI_USER:-frappe}"
 
     if ! id "$ci_user" >/dev/null 2>&1; then
