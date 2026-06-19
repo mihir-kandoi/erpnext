@@ -1,5 +1,5 @@
 import frappe
-from frappe.query_builder.functions import Count
+from frappe.query_builder.functions import Count, Max
 
 
 def get_context(context):
@@ -38,15 +38,15 @@ def get_favorite_articles_by_page_view():
 		.inner_join(wpv)
 		.on(ha.route == wpv.path)
 		.select(
-			ha.name,
-			ha.title,
-			ha.content,
+			Max(ha.name).as_("name"),
+			Max(ha.title).as_("title"),
+			Max(ha.content).as_("content"),
 			ha.route,
-			ha.category,
+			Max(ha.category).as_("category"),
 			Count(ha.route).as_("count"),
 		)
 		.where(ha.published == 1)
-		.groupby(ha.name, ha.title, ha.content, ha.route, ha.category)
+		.groupby(ha.route)
 		.orderby(Count(ha.route), order=frappe.qb.desc)
 		.limit(6)
 		.run(as_dict=True)
