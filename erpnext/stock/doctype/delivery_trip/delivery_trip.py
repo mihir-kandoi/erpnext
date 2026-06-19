@@ -319,7 +319,7 @@ def get_default_contact(out, name):
 	contact = frappe.qb.DocType("Contact")
 	contact_persons = (
 		frappe.qb.from_(dl)
-		.inner_join(contact)
+		.left_join(contact)
 		.on(contact.name == dl.parent)
 		.select(dl.parent, contact.is_primary_contact)
 		.where((dl.link_doctype == "Customer") & (dl.link_name == name) & (dl.parenttype == "Contact"))
@@ -341,7 +341,7 @@ def get_default_address(out, name):
 	address = frappe.qb.DocType("Address")
 	shipping_addresses = (
 		frappe.qb.from_(dl)
-		.inner_join(address)
+		.left_join(address)
 		.on(address.name == dl.parent)
 		.select(dl.parent, address.is_shipping_address)
 		.where((dl.link_doctype == "Customer") & (dl.link_name == name) & (dl.parenttype == "Address"))

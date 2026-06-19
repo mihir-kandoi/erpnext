@@ -3385,6 +3385,68 @@ class TestDeliveryNote(ERPNextTestSuite):
 		dn.items[0].stock_qty = 2
 		dn.save()
 
+	def test_validate_proj_cust_matches_project_customer(self):
+		"""validate_proj_cust must reject a DN whose customer differs from the project's customer,
+		and accept one when the project has no customer (the ifnull(customer,'')='' / `is not set`
+		branch of the converted or_filters)."""
+		mismatch_project = frappe.get_doc(
+			{
+				"doctype": "Project",
+				"project_name": "_Test DN Project Mismatch",
+				"company": "_Test Company",
+				"customer": "_Test Customer 1",
+			}
+		).insert()
+		dn = create_delivery_note(customer="_Test Customer", do_not_save=True)
+		dn.project = mismatch_project.name
+		with self.assertRaises(frappe.ValidationError) as cm:
+			dn.insert()
+		self.assertIn("does not belong to project", str(cm.exception))
+
+		# A project with no customer must pass via the empty-string/NULL or_filters branch.
+		open_project = frappe.get_doc(
+			{
+				"doctype": "Project",
+				"project_name": "_Test DN Project No Customer",
+				"company": "_Test Company",
+			}
+		).insert()
+		self.assertFalse(open_project.customer)
+		dn2 = create_delivery_note(customer="_Test Customer", do_not_save=True)
+		dn2.project = open_project.name
+		dn2.insert()  # must not raise
+		self.assertTrue(dn2.name)
+
+	def test_check_next_docstatus_blocks_cancel_with_submitted_invoice(self):
+		"""check_next_docstatus must block cancelling a DN once a submitted Sales Invoice draws from
+		it — covers the converted child-table get_all (Sales Invoice Item, docstatus=1)."""
+		dn = create_delivery_note()  # submitted, simple _Test Item
+		si = make_sales_invoice(dn.name)
+		si.insert()
+		si.submit()
+
+		dn.load_from_db()
+		with self.assertRaises(frappe.ValidationError) as cm:
+			dn.cancel()
+		self.assertIn("has already been submitted", str(cm.exception))
+
+	def test_cancel_packing_slips_cancels_submitted_slips(self):
+		"""cancel_packing_slips must cancel the DN's submitted Packing Slips — covers the converted
+		get_all(pluck=name) lookup and the pluck-aware iteration."""
+		from erpnext.stock.doctype.delivery_note.mapper import make_packing_slip
+		from erpnext.stock.doctype.delivery_note.services.packing import PackingService
+
+		dn = create_delivery_note(do_not_submit=True)  # draft, so a Packing Slip can be mapped
+		ps = make_packing_slip(dn.name)
+		ps.save()
+		ps.submit()
+		dn.submit()
+		self.assertEqual(frappe.db.get_value("Packing Slip", ps.name, "docstatus"), 1)
+
+		PackingService(dn).cancel_packing_slips()
+
+		self.assertEqual(frappe.db.get_value("Packing Slip", ps.name, "docstatus"), 2)
+
 
 def create_delivery_note(**args):
 	dn = frappe.new_doc("Delivery Note")
