@@ -1,0 +1,76 @@
+name: Ephemeral ERPNext Bench Smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bench-smoke:
+    runs-on: [self-hosted, Linux, ARM64, oracle-ephemeral]
+    timeout-minutes: 90
+    services:
+      mysql:
+        image: mariadb:10.6
+        env:
+          MARIADB_ROOT_PASSWORD: root
+        ports: ["3306:3306"]
+        options: --health-cmd="mariadb-admin ping -h 127.0.0.1 -uroot -proot" --health-interval=5s --health-timeout=2s --health-retries=12
+      redis-cache:
+        image: redis:7-alpine
+        ports: ["13000:6379"]
+      redis-queue:
+        image: redis:7-alpine
+        ports: ["11000:6379"]
+      redis-socketio:
+        image: redis:7-alpine
+        ports: ["12000:6379"]
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          check-latest: true
+
+      - name: Build bench smoke
+        shell: bash
+        run: |
+          set -euxo pipefail
+          hostname
+          docker --version
+          python3 --version
+          wkhtmltopdf --version
+          mariadb --version
+
+          corepack enable
+          corepack prepare yarn@1.22.22 --activate
+          python3 -m venv "$RUNNER_TEMP/bench-venv"
+          . "$RUNNER_TEMP/bench-venv/bin/activate"
+          python -m pip install --upgrade pip wheel setuptools frappe-bench
+
+          git clone --depth 1 --branch develop https://github.com/frappe/frappe "$RUNNER_TEMP/frappe-src"
+          bench init --skip-assets --frappe-path "$RUNNER_TEMP/frappe-src" --python /usr/bin/python3 "$RUNNER_TEMP/frappe-bench"
+
+          cd "$RUNNER_TEMP/frappe-bench"
+          bench set-config -g db_host 127.0.0.1
+          bench set-config -g db_port 3306
+          bench set-config -g redis_cache redis://127.0.0.1:13000
+          bench set-config -g redis_queue redis://127.0.0.1:11000
+          bench set-config -g redis_socketio redis://127.0.0.1:12000
+
+          bench get-app payments --branch develop
+          bench get-app erpnext "$GITHUB_WORKSPACE"
+          bench setup requirements --dev
+
+          mariadb -h 127.0.0.1 -P 3306 -uroot -proot -e "CREATE DATABASE IF NOT EXISTS test_frappe"
+          mariadb -h 127.0.0.1 -P 3306 -uroot -proot -e "CREATE USER IF NOT EXISTS 'test_frappe'@'%' IDENTIFIED BY 'test_frappe'"
+          mariadb -h 127.0.0.1 -P 3306 -uroot -proot -e "GRANT ALL PRIVILEGES ON \`test_frappe\`.* TO 'test_frappe'@'%'"
+          mariadb -h 127.0.0.1 -P 3306 -uroot -proot -e "FLUSH PRIVILEGES"
+
+          mkdir -p sites/test_site
+          cp "$GITHUB_WORKSPACE/.github/helper/site_config_mariadb.json" sites/test_site/site_config.json
+          bench --site test_site reinstall --yes
+          bench --site test_site list-apps
+          bench --site test_site execute frappe.get_installed_apps
