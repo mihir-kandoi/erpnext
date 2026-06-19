@@ -233,13 +233,19 @@ class MaintenanceSchedule(TransactionBase):
 				throw(_("Start date should be less than end date for Item {0}").format(d.item_code))
 
 	def validate_sales_order(self):
+		ms = frappe.qb.DocType("Maintenance Schedule")
+		msi = frappe.qb.DocType("Maintenance Schedule Item")
 		for d in self.get("items"):
 			if d.sales_order:
-				chk = frappe.get_all(
-					"Maintenance Schedule Item",
-					filters={"sales_order": d.sales_order, "docstatus": 1},
-					pluck="parent",
-					limit=1,
+				# filter the parent schedule's docstatus (matches the original ms.docstatus = 1)
+				chk = (
+					frappe.qb.from_(ms)
+					.inner_join(msi)
+					.on(msi.parent == ms.name)
+					.select(ms.name)
+					.where((msi.sales_order == d.sales_order) & (ms.docstatus == 1))
+					.limit(1)
+					.run(pluck=True)
 				)
 				if chk:
 					throw(_("Maintenance Schedule {0} exists against {1}").format(chk[0], d.sales_order))

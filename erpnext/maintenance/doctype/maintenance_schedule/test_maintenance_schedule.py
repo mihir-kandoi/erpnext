@@ -168,6 +168,33 @@ class TestMaintenanceSchedule(ERPNextTestSuite):
 		ms.save()
 		self.assertEqual(len(ms.schedules), 2)
 
+	def test_validate_sales_order_duplicate_throws(self):
+		# validate_sales_order joins Maintenance Schedule + its item filtering the PARENT schedule's
+		# docstatus=1; a second schedule against a Sales Order already used by a submitted schedule
+		# must be rejected.
+		from erpnext.selling.doctype.sales_order.test_sales_order import make_sales_order
+
+		so = make_sales_order()
+		first = make_maintenance_schedule(sales_order=so.name)
+		self.assertEqual(first.items[0].sales_order, so.name)
+		first.submit()
+
+		self.assertRaises(frappe.ValidationError, make_maintenance_schedule, sales_order=so.name)
+
+	def test_get_holidays_returns_holiday_dates(self):
+		# get_holidays() -> frappe.get_all("Holiday", {"parent": <list>}, pluck="holiday_date")
+		from erpnext.setup.doctype.holiday_list.test_holiday_list import make_holiday_list
+
+		holiday = add_days(today(), 3)
+		hl = make_holiday_list(
+			"_Test MS Holidays " + frappe.generate_hash("", 6),
+			from_date=today(),
+			to_date=add_days(today(), 10),
+			holiday_dates=[{"holiday_date": holiday, "description": "Test Holiday"}],
+		)
+		dates = frappe.get_all("Holiday", filters={"parent": hl.name}, pluck="holiday_date")
+		self.assertIn(frappe.utils.getdate(holiday), [frappe.utils.getdate(d) for d in dates])
+
 
 def make_serial_item_with_serial(self, item_code):
 	serial_item_doc = create_item(item_code, is_stock_item=1)
@@ -202,6 +229,7 @@ def make_maintenance_schedule(**args):
 			"no_of_visits": 4,
 			"serial_no": args.get("serial_no"),
 			"sales_person": "Sales Team",
+			"sales_order": args.get("sales_order"),
 		},
 	)
 	ms.insert(ignore_permissions=True)
