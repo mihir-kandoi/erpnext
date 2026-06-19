@@ -31,6 +31,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 concurrency:
   group: server-mariadb-develop-${{ github.event_name }}-${{ github.event.number || github.event_name == 'workflow_dispatch' && github.run_id || '' }}
@@ -42,6 +43,9 @@ jobs:
     timeout-minutes: 60
     container:
       image: ghcr.io/mihir-kandoi/erpnext-ci-mariadb:py3.14-node24
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ github.token }}
       options: --cpus 2 --memory 6g
       volumes:
         - /opt/erpnext-ci-cache/pip:/github/home/.cache/pip
@@ -102,7 +106,7 @@ jobs:
           DB: mariadb
           TYPE: server
           FRAPPE_USER: ${{ github.event.inputs.user }}
-          FRAPPE_BRANCH: ${{ github.event.client_payload.sha || github.event.inputs.branch }}
+          FRAPPE_BRANCH: ${{ github.event.client_payload.sha || github.event.inputs.branch || 'develop' }}
           DB_HOST: mysql
           DB_USER_HOST: '%'
           WKHTMLTOX_DEB: /opt/erpnext-ci-cache/wkhtmltox/wkhtmltox.deb
@@ -235,7 +239,7 @@ jobs:
           DB: mariadb
           TYPE: server
           FRAPPE_USER: ${{ github.event.inputs.user }}
-          FRAPPE_BRANCH: ${{ github.event.client_payload.sha || github.event.inputs.branch }}
+          FRAPPE_BRANCH: ${{ github.event.client_payload.sha || github.event.inputs.branch || 'develop' }}
 
       - name: Run Tests
         run: |
