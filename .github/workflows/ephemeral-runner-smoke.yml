@@ -1,0 +1,22 @@
+name: Ephemeral Runner Smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: [self-hosted, Linux, ARM64, oracle-ephemeral]
+    timeout-minutes: 10
+    steps:
+      - name: Show runner
+        run: |
+          hostname
+          uname -a
+          whoami
+          pwd
+          docker --version
+          wkhtmltopdf --version
+          mariadb --version
