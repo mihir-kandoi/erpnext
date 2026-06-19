@@ -48,6 +48,7 @@ jobs:
         - /opt/erpnext-ci-cache/npm:/github/home/.npm
         - /opt/erpnext-ci-cache/yarn:/github/home/.cache/yarn
         - /opt/erpnext-ci-cache/wkhtmltox:/opt/erpnext-ci-cache/wkhtmltox
+        - /opt/erpnext-ci-cache/bench:/opt/erpnext-ci-cache/bench
     defaults:
       run:
         shell: bash
@@ -56,6 +57,9 @@ jobs:
       DEBIAN_FRONTEND: noninteractive
       NODE_ENV: "production"
       WITH_COVERAGE: ${{ github.event_name != 'pull_request' }}
+      PIP_CACHE_DIR: /github/home/.cache/pip
+      npm_config_cache: /github/home/.npm
+      YARN_CACHE_FOLDER: /github/home/.cache/yarn
 
     strategy:
       fail-fast: false
@@ -81,7 +85,7 @@ jobs:
       - name: Prepare job container
         run: |
           apt-get update
-          apt-get install -y bash ca-certificates curl git sudo tar unzip wget xz-utils
+          apt-get install -y bash ca-certificates curl git sudo tar unzip wget xz-utils zstd
 
       - name: Clone
         uses: actions/checkout@v6
@@ -111,16 +115,6 @@ jobs:
       - name: Add to Hosts
         run: echo "127.0.0.1 test_site" | sudo tee -a /etc/hosts
 
-      - name: Adapt CI helper for job containers
-        run: |
-          sed -i 's/"db_host": "127.0.0.1"/"db_host": "mysql"/' .github/helper/site_config_mariadb.json
-          sed -i 's/--host 127\.0\.0\.1/--host mysql/g' .github/helper/install.sh
-          sed -i "s/'test_frappe'@'localhost'/'test_frappe'@'%'/g" .github/helper/install.sh
-          sed -i 's#/tmp/wkhtmltox.deb#/opt/erpnext-ci-cache/wkhtmltox/wkhtmltox.deb#g' .github/helper/install.sh
-          sed -i 's/sudo apt update/sudo apt-get update/g' .github/helper/install.sh
-          sed -i 's/sudo apt remove /sudo apt-get remove -y /g' .github/helper/install.sh
-          sed -i 's/sudo apt install /sudo apt-get install -y /g' .github/helper/install.sh
-
       - name: Install
         run: bash ${GITHUB_WORKSPACE}/.github/helper/install.sh
         env:
@@ -128,6 +122,10 @@ jobs:
           TYPE: server
           FRAPPE_USER: ${{ github.event.inputs.user }}
           FRAPPE_BRANCH: ${{ github.event.client_payload.sha || github.event.inputs.branch }}
+          DB_HOST: mysql
+          DB_USER_HOST: '%'
+          WKHTMLTOX_DEB: /opt/erpnext-ci-cache/wkhtmltox/wkhtmltox.deb
+          BENCH_CACHE_DIR: /opt/erpnext-ci-cache/bench
 
       - name: Run Tests
         run: |
