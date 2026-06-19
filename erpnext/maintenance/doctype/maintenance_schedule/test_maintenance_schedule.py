@@ -181,19 +181,37 @@ class TestMaintenanceSchedule(ERPNextTestSuite):
 
 		self.assertRaises(frappe.ValidationError, make_maintenance_schedule, sales_order=so.name)
 
-	def test_get_holidays_returns_holiday_dates(self):
-		# get_holidays() -> frappe.get_all("Holiday", {"parent": <list>}, pluck="holiday_date")
+	def test_validate_schedule_date_skips_holiday(self):
+		# validate_schedule_date_for_holiday_list reads the holiday list via the converted
+		# get_all("Holiday", {"parent": <list>}, pluck="holiday_date") and shifts a schedule date
+		# that lands on a holiday back by a day; a non-holiday date is returned unchanged.
+		from frappe.utils import getdate
+
 		from erpnext.setup.doctype.holiday_list.test_holiday_list import make_holiday_list
 
-		holiday = add_days(today(), 3)
+		holiday = add_days(today(), 5)
 		hl = make_holiday_list(
 			"_Test MS Holidays " + frappe.generate_hash("", 6),
 			from_date=today(),
 			to_date=add_days(today(), 10),
 			holiday_dates=[{"holiday_date": holiday, "description": "Test Holiday"}],
 		)
-		dates = frappe.get_all("Holiday", filters={"parent": hl.name}, pluck="holiday_date")
-		self.assertIn(frappe.utils.getdate(holiday), [frappe.utils.getdate(d) for d in dates])
+
+		ms = make_maintenance_schedule()
+		# a Sales Person with no linked employee routes to the company-default-holiday-list branch
+		sp = frappe.get_doc(
+			{"doctype": "Sales Person", "sales_person_name": "_Test MS SP " + frappe.generate_hash("", 5)}
+		).insert(ignore_permissions=True)
+		frappe.db.set_value("Company", ms.company, "default_holiday_list", hl.name)
+
+		# a date on the holiday is shifted back one day...
+		shifted = ms.validate_schedule_date_for_holiday_list(getdate(holiday), sp.name)
+		self.assertEqual(getdate(shifted), getdate(add_days(holiday, -1)))
+
+		# ...a non-holiday date is returned unchanged
+		non_holiday = add_days(today(), 7)
+		unchanged = ms.validate_schedule_date_for_holiday_list(getdate(non_holiday), sp.name)
+		self.assertEqual(getdate(unchanged), getdate(non_holiday))
 
 
 def make_serial_item_with_serial(self, item_code):

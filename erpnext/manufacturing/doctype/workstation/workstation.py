@@ -194,7 +194,9 @@ class Workstation(Document):
 	def update_bom_operation(self):
 		bom_list = frappe.get_all(
 			"BOM Operation",
-			filters={"workstation": self.name, "parenttype": "routing"},
+			# DocType is "Routing"; the original raw SQL used 'routing', which matched only via
+			# MariaDB's case-insensitive collation and silently matched nothing on Postgres.
+			filters={"workstation": self.name, "parenttype": "Routing"},
 			pluck="parent",
 			distinct=True,
 		)
