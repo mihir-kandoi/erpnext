@@ -29,6 +29,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          check-latest: true
+
       - uses: actions/setup-node@v6
         with:
           node-version: 24
@@ -40,18 +47,18 @@ jobs:
           set -euxo pipefail
           hostname
           docker --version
-          python3 --version
+          python --version
           wkhtmltopdf --version
           mariadb --version
 
           corepack enable
           corepack prepare yarn@1.22.22 --activate
-          python3 -m venv "$RUNNER_TEMP/bench-venv"
+          python -m venv "$RUNNER_TEMP/bench-venv"
           . "$RUNNER_TEMP/bench-venv/bin/activate"
           python -m pip install --upgrade pip wheel setuptools frappe-bench
 
           git clone --depth 1 --branch develop https://github.com/frappe/frappe "$RUNNER_TEMP/frappe-src"
-          bench init --skip-assets --frappe-path "$RUNNER_TEMP/frappe-src" --python /usr/bin/python3 "$RUNNER_TEMP/frappe-bench"
+          bench init --skip-assets --frappe-path "$RUNNER_TEMP/frappe-src" --python "$(command -v python)" "$RUNNER_TEMP/frappe-bench"
 
           cd "$RUNNER_TEMP/frappe-bench"
           bench set-config -g db_host 127.0.0.1
