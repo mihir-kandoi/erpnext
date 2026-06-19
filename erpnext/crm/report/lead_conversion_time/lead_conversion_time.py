@@ -119,11 +119,14 @@ def get_communication_details(filters):
 		first_contact = (
 			frappe.qb.from_(comm)
 			.select(Date(comm.communication_date))
-			.where(comm.recipients == d.contact_email)
+			.where((comm.recipients == d.contact_email) & comm.communication_date.isnotnull())
 			.orderby(comm.communication_date)
 			.limit(1)
 			.run()
-		)[0][0]
+		)
+		first_contact = first_contact[0][0] if first_contact else None
+		if not first_contact:
+			continue
 
 		duration = flt(date_diff(invoice_date, first_contact))
 
