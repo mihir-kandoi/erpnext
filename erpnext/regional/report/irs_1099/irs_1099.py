@@ -154,6 +154,7 @@ def get_street_address_html(party_type, party):
 		.where((link.parenttype == "Address") & (link.link_name == party))
 		.orderby(Case().when(address.address_type == "Postal", 1).else_(0), order=frappe.qb.desc)
 		.orderby(Case().when(address.address_type == "Billing", 1).else_(0), order=frappe.qb.desc)
+		.orderby(link.parent)  # deterministic LIMIT-1 tie-break across engines
 		.limit(1)
 		.run(as_dict=True)
 	)
