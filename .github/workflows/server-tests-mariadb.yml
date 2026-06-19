@@ -164,6 +164,118 @@ jobs:
           name: coverage-${{ matrix.container }}
           path: /home/runner/frappe-bench/sites/coverage.xml
 
+  test-self-hosted:
+    runs-on: [self-hosted, linux, x64, erpnext-ci]
+    timeout-minutes: 60
+    container:
+      image: ubuntu:24.04
+      options: --cpus 2 --memory 6g
+      volumes:
+        - /opt/erpnext-ci-cache/${{ runner.name }}/pip:/github/home/.cache/pip
+        - /opt/erpnext-ci-cache/${{ runner.name }}/npm:/github/home/.npm
+        - /opt/erpnext-ci-cache/${{ runner.name }}/yarn:/github/home/.cache/yarn
+        - /opt/erpnext-ci-cache/${{ runner.name }}/wkhtmltox:/opt/erpnext-ci-cache/wkhtmltox
+    defaults:
+      run:
+        shell: bash
+    env:
+      TZ: 'Asia/Kolkata'
+      DEBIAN_FRONTEND: noninteractive
+      NODE_ENV: "production"
+
+    strategy:
+      fail-fast: false
+      max-parallel: 60
+
+      matrix:
+        container: [
+          1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+          11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+          21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
+          31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
+          41, 42, 43, 44, 45, 46, 47, 48, 49, 50,
+          51, 52, 53, 54, 55, 56, 57, 58, 59, 60
+        ]
+
+    name: Self Hosted Python Unit Tests (${{ matrix.container }}/60)
+
+    services:
+      mysql:
+        image: mariadb:10.6
+        env:
+          TZ: 'Asia/Kolkata'
+          MARIADB_ROOT_PASSWORD: 'root'
+          # Disable durability guarantees that are unnecessary in a throwaway CI container.
+          # innodb_flush_log_at_trx_commit=0 avoids an fsync on every commit (biggest win).
+          # sync_binlog=0 skips binary-log syncs; innodb_doublewrite=0 skips the doublewrite buffer.
+          MARIADB_EXTRA_FLAGS: --innodb-flush-log-at-trx-commit=0 --sync-binlog=0 --innodb-doublewrite=0
+        options: --health-cmd="mariadb-admin ping -h 127.0.0.1 -uroot -proot" --health-interval=5s --health-timeout=2s --health-retries=10
+
+    steps:
+      - name: Prepare job container
+        run: |
+          apt-get update
+          apt-get install -y bash ca-certificates curl git sudo tar unzip wget xz-utils
+
+      - name: Clone
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+
+      - name: Check for valid Python & Merge Conflicts
+        run: |
+          python -m compileall -fq "${GITHUB_WORKSPACE}"
+          if grep -lr --exclude-dir=node_modules "^<<<<<<< " "${GITHUB_WORKSPACE}"
+              then echo "Found merge conflicts"
+              exit 1
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          check-latest: true
+
+      - name: Install Yarn
+        run: npm install --global yarn
+
+      - name: Add to Hosts
+        run: echo "127.0.0.1 test_site" | sudo tee -a /etc/hosts
+
+      - name: Adapt CI helper for job containers
+        run: |
+          sed -i 's/"db_host": "127.0.0.1"/"db_host": "mysql"/' .github/helper/site_config_mariadb.json
+          sed -i 's/--host 127\.0\.0\.1/--host mysql/g' .github/helper/install.sh
+          sed -i "s/'test_frappe'@'localhost'/'test_frappe'@'%'/g" .github/helper/install.sh
+          sed -i 's#/tmp/wkhtmltox.deb#/opt/erpnext-ci-cache/wkhtmltox/wkhtmltox.deb#g' .github/helper/install.sh
+          sed -i 's/sudo apt update/sudo apt-get update/g' .github/helper/install.sh
+          sed -i 's/sudo apt remove /sudo apt-get remove -y /g' .github/helper/install.sh
+          sed -i 's/sudo apt install /sudo apt-get install -y /g' .github/helper/install.sh
+
+      - name: Install
+        run: bash ${GITHUB_WORKSPACE}/.github/helper/install.sh
+        env:
+          DB: mariadb
+          TYPE: server
+          FRAPPE_USER: ${{ github.event.inputs.user }}
+          FRAPPE_BRANCH: ${{ github.event.client_payload.sha || github.event.inputs.branch }}
+
+      - name: Run Tests
+        run: |
+          cd ~/frappe-bench/
+          bench --site test_site run-parallel-tests --lightmode --app erpnext \
+            --total-builds 60 \
+            --build-number ${{ matrix.container }}
+        env:
+          TYPE: server
+
+      - name: Show bench output
+        if: ${{ always() }}
+        run: cat ~/frappe-bench/bench_start.log || true
+
   coverage:
     name: Coverage Wrap Up
     needs: test
