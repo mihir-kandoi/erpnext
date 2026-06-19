@@ -223,19 +223,21 @@ class EmailDigest(Document):
 			user_id = frappe.session.user
 
 		todo = frappe.qb.DocType("ToDo")
+		# matches MySQL field(priority,'High','Medium','Low'): unknown/empty/NULL -> 0 (sorts first)
 		priority_order = (
 			Case()
 			.when(todo.priority == "High", 1)
 			.when(todo.priority == "Medium", 2)
 			.when(todo.priority == "Low", 3)
-			.else_(4)
+			.else_(0)
 		)
 		todo_list = (
 			frappe.qb.from_(todo)
 			.select(todo.star)
 			.where(((todo.owner == user_id) | (todo.assigned_by == user_id)) & (todo.status == "Open"))
 			.orderby(priority_order)
-			.orderby(IfNull(todo.date, "9999-12-31"))
+			.orderby(IfNull(todo.date, "1000-01-01"))  # NULL dates first, as MariaDB `date asc` did
+			.orderby(todo.name)
 			.limit(20)
 			.run(as_dict=True)
 		)

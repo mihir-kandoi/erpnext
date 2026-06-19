@@ -40,6 +40,44 @@ class TestEmailDigest(ERPNextTestSuite):
 		self.assertIn(po1.name, overdue_items)
 		self.assertNotIn(po2.name, overdue_items)
 
+	def test_get_todo_list_priority_and_date_ordering(self):
+		"""Original SQL ordered by `field(priority,'High','Medium','Low') asc, date asc`: MySQL
+		FIELD() returns 0 for empty/unknown priority (sorts FIRST under asc) and MariaDB sorts NULL
+		dates FIRST. The conversion's else_(4) sorts unknown priority LAST and IfNull(date,'9999')
+		sorts NULL dates LAST -- changing the LIMIT-20 slice on MariaDB (PG matches the new code, so
+		both engines differ from the original)."""
+		user = "_test_todo_order@example.com"
+		if not frappe.db.exists("User", user):
+			frappe.get_doc(
+				{"doctype": "User", "email": user, "first_name": "Todo Order", "send_welcome_email": 0}
+			).insert(ignore_permissions=True)
+
+		def mk(desc, priority, date):
+			td = frappe.get_doc(
+				{
+					"doctype": "ToDo",
+					"description": desc,
+					"assigned_by": user,
+					"status": "Open",
+					"priority": "Medium",
+				}
+			).insert(ignore_permissions=True)
+			frappe.db.set_value("ToDo", td.name, {"priority": priority, "date": date}, update_modified=False)
+			return td.name
+
+		empty_pri = mk("empty-priority", "", "2020-01-01")
+		high_dated = mk("high-dated", "High", "2020-06-15")
+		high_nulldate = mk("high-nulldate", "High", None)
+		mk("low", "Low", "2020-03-01")
+
+		rows = frappe.new_doc("Email Digest").get_todo_list(user_id=user)
+		order = [r.name for r in rows]
+
+		# unknown/empty priority (FIELD()=0) must sort before High
+		self.assertLess(order.index(empty_pri), order.index(high_dated))
+		# within the High tier, a NULL date must sort before a real date (MariaDB NULLs-first)
+		self.assertLess(order.index(high_nulldate), order.index(high_dated))
+
 
 def create_email_digest(**args):
 	args = frappe._dict(args)
