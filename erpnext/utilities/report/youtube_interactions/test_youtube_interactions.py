@@ -9,10 +9,11 @@ from erpnext.utilities.report.youtube_interactions.youtube_interactions import e
 
 class TestYoutubeInteractions(ERPNextTestSuite):
 	def test_zero_view_video_is_listed(self):
-		"""The original report filtered `WHERE view_count IS NOT NULL` -- a no-op, since view_count
-		is a NOT NULL Float. The converted `["is", "set"]` filter renders as `view_count <> ''`
-		(MariaDB, Float-coerced to 0) / `view_count <> 0` (Postgres), silently dropping videos with
-		exactly 0 views. Both engines agree with each other but both differ from the original."""
+		"""The original report filtered `WHERE view_count is not null`. The conversion keeps that exact
+		semantics with `.where(video.view_count.isnotnull())` (IS NOT NULL), NOT a `<> 0` test, so a
+		video with exactly 0 views is still reported. This guards against a regression to `!= 0`
+		(which would silently drop 0-view videos) and confirms the filter renders identically on both
+		engines."""
 		frappe.db.set_single_value("Video Settings", "enable_youtube_tracking", 1)
 
 		for title, views in (("_Test Zero Views Video", 0.0), ("_Test Ten Views Video", 10.0)):

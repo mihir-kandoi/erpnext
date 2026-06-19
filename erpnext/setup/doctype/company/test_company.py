@@ -191,6 +191,30 @@ class TestCompany(ERPNextTestSuite):
 		child_company.save()
 		self.test_basic_tree()
 
+	def test_annual_transaction_history_merges_dates_across_doctypes(self):
+		"""get_all_transactions_annual_history aggregates each DocType separately, then merges the
+		per-date counts. Two transactions of different DocTypes sharing a transaction_date must land
+		in one date bucket with the summed count (the UNION GROUP BY -> Counter-merge conversion)."""
+		from frappe.utils import add_days, get_timestamp, nowdate
+
+		from erpnext.selling.doctype.quotation.test_quotation import make_quotation
+		from erpnext.selling.doctype.sales_order.test_sales_order import make_sales_order
+		from erpnext.setup.doctype.company.company import get_all_transactions_annual_history
+
+		company = "_Test Company"
+		txn_date = add_days(nowdate(), -30)
+		key = get_timestamp(txn_date)
+
+		before = get_all_transactions_annual_history(company).get(key, 0)
+
+		quotation = make_quotation(company=company, transaction_date=txn_date, do_not_submit=True)
+		self.addCleanup(frappe.delete_doc, "Quotation", quotation.name, force=True)
+		sales_order = make_sales_order(company=company, transaction_date=txn_date, do_not_submit=True)
+		self.addCleanup(frappe.delete_doc, "Sales Order", sales_order.name, force=True)
+
+		after = get_all_transactions_annual_history(company).get(key, 0)
+		self.assertEqual(after - before, 2)
+
 	def test_demo_data(self):
 		from erpnext.setup.demo import clear_demo_data, setup_demo_data
 

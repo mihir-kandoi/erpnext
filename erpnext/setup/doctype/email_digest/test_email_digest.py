@@ -43,9 +43,10 @@ class TestEmailDigest(ERPNextTestSuite):
 	def test_get_todo_list_priority_and_date_ordering(self):
 		"""Original SQL ordered by `field(priority,'High','Medium','Low') asc, date asc`: MySQL
 		FIELD() returns 0 for empty/unknown priority (sorts FIRST under asc) and MariaDB sorts NULL
-		dates FIRST. The conversion's else_(4) sorts unknown priority LAST and IfNull(date,'9999')
-		sorts NULL dates LAST -- changing the LIMIT-20 slice on MariaDB (PG matches the new code, so
-		both engines differ from the original)."""
+		dates FIRST. The conversion preserves this: the priority CASE uses else_(0) (unknown/empty
+		priority sorts FIRST) and IfNull(date,'1000-01-01') keeps NULL dates FIRST, so the LIMIT-20
+		slice is identical on both engines. The two assertions below exercise both branches and would
+		fail if either sentinel were flipped to sort those rows last."""
 		user = "_test_todo_order@example.com"
 		if not frappe.db.exists("User", user):
 			frappe.get_doc(
