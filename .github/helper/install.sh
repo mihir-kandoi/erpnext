@@ -17,15 +17,20 @@ bench_cache_dir=${BENCH_CACHE_DIR:-}
 #   a) system packages   b) frappe-bench pip install   c) frappe git fetch
 # ---------------------------------------------------------------------------
 
-sudo apt-get update
+if [ "${SKIP_SYSTEM_SETUP:-0}" != "1" ]; then
+    sudo apt-get update
 
-# apt remove/install must run sequentially but can overlap with pip and git.
-sudo apt-get remove -y mysql-server mysql-client
-sudo apt-get install -y libcups2-dev redis-server mariadb-client libmariadb-dev &
-apt_pid=$!
+    # apt remove/install must run sequentially but can overlap with pip and git.
+    sudo apt-get remove -y mysql-server mysql-client
+    sudo apt-get install -y libcups2-dev redis-server mariadb-client libmariadb-dev &
+    apt_pid=$!
 
-pip install frappe-bench &
-pip_pid=$!
+    pip install frappe-bench &
+    pip_pid=$!
+else
+    apt_pid=
+    pip_pid=
+fi
 
 mkdir frappe
 (
@@ -36,8 +41,8 @@ mkdir frappe
 ) &
 clone_pid=$!
 
-wait $apt_pid
-wait $pip_pid
+if [ -n "$apt_pid" ]; then wait $apt_pid; fi
+if [ -n "$pip_pid" ]; then wait $pip_pid; fi
 wait $clone_pid
 
 pushd frappe
@@ -106,8 +111,12 @@ install_whktml() {
     fi
     sudo apt-get install -y "$wkhtmltox_deb"
 }
-install_whktml &
-wkpid=$!
+if [ "${SKIP_WKHTMLTOX_SETUP:-0}" != "1" ]; then
+    install_whktml &
+    wkpid=$!
+else
+    wkpid=
+fi
 
 if ! restore_warm_bench; then
     bench init --skip-assets --frappe-path ~/frappe --python "$(which python)" frappe-bench
@@ -123,7 +132,7 @@ if ! restore_warm_bench; then
     save_warm_bench
 fi
 
-wait $wkpid
+if [ -n "$wkpid" ]; then wait $wkpid; fi
 
 mkdir ~/frappe-bench/sites/test_site
 

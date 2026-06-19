@@ -41,7 +41,7 @@ jobs:
     runs-on: [self-hosted, linux, x64, erpnext-ci]
     timeout-minutes: 60
     container:
-      image: ubuntu:24.04
+      image: ghcr.io/mihir-kandoi/erpnext-ci-mariadb:py3.14-node24
       options: --cpus 2 --memory 6g
       volumes:
         - /opt/erpnext-ci-cache/pip:/github/home/.cache/pip
@@ -82,18 +82,8 @@ jobs:
         options: --health-cmd="mariadb-admin ping -h 127.0.0.1 -uroot -proot" --health-interval=5s --health-timeout=2s --health-retries=10
 
     steps:
-      - name: Prepare job container
-        run: |
-          apt-get update
-          apt-get install -y bash ca-certificates curl git sudo tar unzip wget xz-utils zstd
-
       - name: Clone
         uses: actions/checkout@v6
-
-      - name: Setup Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.14'
 
       - name: Check for valid Python & Merge Conflicts
         run: |
@@ -102,15 +92,6 @@ jobs:
               then echo "Found merge conflicts"
               exit 1
           fi
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          check-latest: true
-
-      - name: Install Yarn
-        run: npm install --global yarn
 
       - name: Add to Hosts
         run: echo "127.0.0.1 test_site" | sudo tee -a /etc/hosts
@@ -126,6 +107,8 @@ jobs:
           DB_USER_HOST: '%'
           WKHTMLTOX_DEB: /opt/erpnext-ci-cache/wkhtmltox/wkhtmltox.deb
           BENCH_CACHE_DIR: /opt/erpnext-ci-cache/bench
+          SKIP_SYSTEM_SETUP: "1"
+          SKIP_WKHTMLTOX_SETUP: "1"
 
       - name: Run Tests
         run: |
