@@ -28,6 +28,7 @@ run_as_ci_user_if_needed() {
     local ci_dirs=(
         "$HOME"
         "$GITHUB_WORKSPACE"
+        "$HOME/.cache"
         "${PIP_CACHE_DIR:-$HOME/.cache/pip}"
         "${npm_config_cache:-$HOME/.npm}"
         "${YARN_CACHE_FOLDER:-$HOME/.cache/yarn}"
