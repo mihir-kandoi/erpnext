@@ -28,14 +28,6 @@ on:
         default: 'develop'
         required: false
         type: string
-      runner_pool:
-        description: 'Runner pool for manual fallback runs'
-        default: 'self-hosted'
-        required: false
-        type: choice
-        options:
-          - self-hosted
-          - github-hosted
 
 permissions:
   contents: read
@@ -46,7 +38,6 @@ concurrency:
 
 jobs:
   test:
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.runner_pool != 'github-hosted' }}
     runs-on: [self-hosted, linux, x64, erpnext-ci]
     timeout-minutes: 60
     container:
@@ -72,7 +63,7 @@ jobs:
       matrix:
         container: [1, 2, 3, 4]
 
-    name: Python Unit Tests
+    name: Python Unit Tests (Self Hosted)
 
     services:
       mysql:
@@ -144,7 +135,7 @@ jobs:
           coverage_flag=""
           if [ "$WITH_COVERAGE" = "true" ]; then coverage_flag="--with-coverage"; fi
           bench --site test_site run-parallel-tests --lightmode --app erpnext \
-            --total-builds ${{ strategy.job-total }} \
+            --total-builds 6 \
             --build-number ${{ matrix.container }} \
             $coverage_flag
         env:
@@ -163,7 +154,6 @@ jobs:
           path: /github/home/frappe-bench/sites/coverage.xml
 
   test-github-hosted:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.runner_pool == 'github-hosted' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -175,9 +165,9 @@ jobs:
       fail-fast: false
 
       matrix:
-        container: [1, 2, 3, 4]
+        container: [5, 6]
 
-    name: Python Unit Tests
+    name: Python Unit Tests (GitHub Hosted)
 
     services:
       mysql:
@@ -272,7 +262,7 @@ jobs:
           coverage_flag=""
           if [ "$WITH_COVERAGE" = "true" ]; then coverage_flag="--with-coverage"; fi
           bench --site test_site run-parallel-tests --lightmode --app erpnext \
-            --total-builds ${{ strategy.job-total }} \
+            --total-builds 6 \
             --build-number ${{ matrix.container }} \
             $coverage_flag
         env:
