@@ -48,6 +48,8 @@ if [ -n "${GITHUB_WORKSPACE:-}" ]; then
     git config --global --add safe.directory "$GITHUB_WORKSPACE" || true
 fi
 
+rm -rf ~/frappe ~/frappe-bench
+
 # ---------------------------------------------------------------------------
 # Phase 1 — parallelise the three slow, independent setup steps:
 #   a) system packages   b) frappe-bench pip install   c) frappe git fetch
