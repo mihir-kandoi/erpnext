@@ -46,12 +46,6 @@ jobs:
       credentials:
         username: ${{ secrets.GHCR_USERNAME || github.actor }}
         password: ${{ secrets.GHCR_TOKEN || github.token }}
-      options: --cpus 2 --memory 6g
-      volumes:
-        - /opt/erpnext-ci-cache/pip:/github/home/.cache/pip
-        - /opt/erpnext-ci-cache/npm:/github/home/.npm
-        - /opt/erpnext-ci-cache/wkhtmltox:/opt/erpnext-ci-cache/wkhtmltox
-        - /opt/erpnext-ci-cache/bench:/opt/erpnext-ci-cache/bench
     defaults:
       run:
         shell: bash
@@ -108,8 +102,7 @@ jobs:
           FRAPPE_BRANCH: ${{ github.event.client_payload.sha || github.event.inputs.branch || 'develop' }}
           DB_HOST: mysql
           DB_USER_HOST: '%'
-          WKHTMLTOX_DEB: /opt/erpnext-ci-cache/wkhtmltox/wkhtmltox.deb
-          BENCH_CACHE_DIR: /opt/erpnext-ci-cache/bench
+          WKHTMLTOX_DEB: /tmp/wkhtmltox.deb
           SKIP_SYSTEM_SETUP: "1"
           SKIP_WKHTMLTOX_SETUP: "1"
 
