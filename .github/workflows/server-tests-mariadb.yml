@@ -77,7 +77,10 @@ jobs:
           # innodb_flush_log_at_trx_commit=0 avoids an fsync on every commit (biggest win).
           # sync_binlog=0 skips binary-log syncs; innodb_doublewrite=0 skips the doublewrite buffer.
           MARIADB_EXTRA_FLAGS: --innodb-flush-log-at-trx-commit=0 --sync-binlog=0 --innodb-doublewrite=0
-        options: --health-cmd="mariadb-admin ping -h 127.0.0.1 -uroot -proot" --health-interval=5s --health-timeout=2s --health-retries=10
+        # Put the datadir on tmpfs (RAM). bench reinstall creates one .ibd file per
+        # DocType; on the ARC pod's overlayfs each create+fsync is the dominant install
+        # cost (~300s). tmpfs makes those writes hit RAM, matching GitHub-hosted's SSD.
+        options: --health-cmd="mariadb-admin ping -h 127.0.0.1 -uroot -proot" --health-interval=5s --health-timeout=2s --health-retries=10 --tmpfs /var/lib/mysql
 
     steps:
       - name: Clone
