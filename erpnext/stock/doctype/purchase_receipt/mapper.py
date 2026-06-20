@@ -21,19 +21,15 @@ from erpnext.stock.serial_batch_bundle import (
 
 def get_invoiced_qty_map(purchase_receipt: str) -> dict:
 	"""returns a map: {pr_detail: invoiced_qty}"""
-	invoiced_qty_map = {}
+	pi_item = frappe.qb.DocType("Purchase Invoice Item")
+	query = (
+		frappe.qb.from_(pi_item)
+		.select(pi_item.pr_detail, Sum(pi_item.qty).as_("qty"))
+		.where((pi_item.purchase_receipt == purchase_receipt) & (pi_item.docstatus == 1))
+		.groupby(pi_item.pr_detail)
+	).run(as_list=1)
 
-	for pr_detail, qty in frappe.get_all(
-		"Purchase Invoice Item",
-		filters={"purchase_receipt": purchase_receipt, "docstatus": 1},
-		fields=["pr_detail", "qty"],
-		as_list=True,
-	):
-		if not invoiced_qty_map.get(pr_detail):
-			invoiced_qty_map[pr_detail] = 0
-		invoiced_qty_map[pr_detail] += qty
-
-	return invoiced_qty_map
+	return frappe._dict(query) if query else frappe._dict()
 
 
 def get_returned_qty_map(purchase_receipt: str) -> dict:

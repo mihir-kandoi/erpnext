@@ -423,6 +423,7 @@ class PurchaseReceipt(BuyingController):
 			filters={"purchase_receipt": self.name, "docstatus": 1},
 			fields=["parent"],
 			as_list=True,
+			limit=1,
 		)
 		if submit_rv:
 			frappe.throw(_("Purchase Invoice {0} is already submitted").format(submit_rv[0][0]))
@@ -437,6 +438,7 @@ class PurchaseReceipt(BuyingController):
 			filters={"purchase_receipt": self.name, "docstatus": 1},
 			fields=["parent"],
 			as_list=True,
+			limit=1,
 		)
 		if submitted:
 			frappe.throw(_("Purchase Invoice {0} is already submitted").format(submitted[0][0]))
