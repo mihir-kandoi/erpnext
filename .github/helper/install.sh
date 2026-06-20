@@ -48,6 +48,7 @@ run_as_ci_user_if_needed() {
         "${PIP_CACHE_DIR:-$HOME/.cache/pip}"
         "${npm_config_cache:-$HOME/.npm}"
         "${YARN_CACHE_FOLDER:-$HOME/.cache/yarn}"
+        "${UV_CACHE_DIR:-$HOME/.cache/uv}"
         "$(dirname "$wkhtmltox_deb")"
     )
     if [ -n "$bench_cache_dir" ]; then
@@ -56,6 +57,12 @@ run_as_ci_user_if_needed() {
 
     mkdir -p "${ci_dirs[@]}"
     chown "$ci_user:$ci_user" "${ci_dirs[@]}"
+    chown -R "$ci_user:$ci_user" \
+        "$HOME/.cache" \
+        "${PIP_CACHE_DIR:-$HOME/.cache/pip}" \
+        "${npm_config_cache:-$HOME/.npm}" \
+        "${YARN_CACHE_FOLDER:-$HOME/.cache/yarn}" \
+        "${UV_CACHE_DIR:-$HOME/.cache/uv}"
 
     export ERPNEXT_CI_NON_ROOT=1
     exec su -m "$ci_user" -s /bin/bash -c "cd '$HOME' && bash '$GITHUB_WORKSPACE/.github/helper/install.sh'"
