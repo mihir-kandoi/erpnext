@@ -48,6 +48,7 @@ run_as_ci_user_if_needed() {
         "${PIP_CACHE_DIR:-$HOME/.cache/pip}"
         "${npm_config_cache:-$HOME/.npm}"
         "${YARN_CACHE_FOLDER:-$HOME/.cache/yarn}"
+        "$HOME/.yarn"
         "${UV_CACHE_DIR:-$HOME/.cache/uv}"
         "$(dirname "$wkhtmltox_deb")"
     )
@@ -57,6 +58,9 @@ run_as_ci_user_if_needed() {
 
     mkdir -p "${ci_dirs[@]}"
     chown "$ci_user:$ci_user" "${ci_dirs[@]}"
+    rm -rf "${YARN_CACHE_FOLDER:-$HOME/.cache/yarn}"
+    mkdir -p "${YARN_CACHE_FOLDER:-$HOME/.cache/yarn}" "$HOME/.yarn"
+    chown "$ci_user:$ci_user" "${YARN_CACHE_FOLDER:-$HOME/.cache/yarn}" "$HOME/.yarn"
     rm -rf "${UV_CACHE_DIR:-$HOME/.cache/uv}"
     mkdir -p "${UV_CACHE_DIR:-$HOME/.cache/uv}"
     chown "$ci_user:$ci_user" "${UV_CACHE_DIR:-$HOME/.cache/uv}"
