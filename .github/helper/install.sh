@@ -65,6 +65,7 @@ run_as_ci_user_if_needed
 
 if [ -n "${GITHUB_WORKSPACE:-}" ]; then
     git config --global --add safe.directory "$GITHUB_WORKSPACE" || true
+    git config --global --add safe.directory "$GITHUB_WORKSPACE/.git" || true
 fi
 
 rm -rf ~/frappe ~/frappe-bench
