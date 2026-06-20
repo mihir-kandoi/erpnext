@@ -138,3 +138,35 @@ class TestStockUtilities(ERPNextTestSuite, StockTestMixin):
 		item_scan_with_ctx = scan_barcode("w12345", ctx=ctx)
 		self.assertEqual(item_scan_with_ctx["item_code"], item_with_warehouse.name)
 		self.assertEqual(item_scan_with_ctx["default_warehouse"], warehouse_2.name)
+
+	def test_get_latest_stock_qty(self):
+		"""get_latest_stock_qty (Sum(actual_qty) over Bin; the warehouse-subtree EXISTS converted to
+		a qb subquery) must reflect received stock for a non-group warehouse."""
+		from frappe.utils import flt
+
+		from erpnext.stock.doctype.stock_entry.stock_entry_utils import make_stock_entry
+		from erpnext.stock.utils import get_latest_stock_qty
+
+		warehouse = "_Test Warehouse - _TC"
+		item = self.make_item(properties={"is_stock_item": 1}).name
+		before = flt(get_latest_stock_qty(item, warehouse))
+
+		make_stock_entry(item_code=item, target=warehouse, qty=8, basic_rate=100)
+
+		self.assertEqual(flt(get_latest_stock_qty(item, warehouse)), before + 8)
+
+	def test_get_stock_value_from_bin(self):
+		"""get_stock_value_from_bin (comma-join -> inner_join, `ifnull(disabled,0)=0` ->
+		`disabled==0 | isnull`) must sum the Bin stock_value for an item."""
+		from frappe.utils import flt
+
+		from erpnext.stock.doctype.stock_entry.stock_entry_utils import make_stock_entry
+		from erpnext.stock.utils import get_stock_value_from_bin
+
+		warehouse = "_Test Warehouse - _TC"
+		item = self.make_item(properties={"is_stock_item": 1}).name
+
+		make_stock_entry(item_code=item, target=warehouse, qty=5, basic_rate=50)
+
+		# returns a single-row result set: [(stock_value,)]
+		self.assertEqual(flt(get_stock_value_from_bin(item_code=item)[0][0]), 5 * 50)
