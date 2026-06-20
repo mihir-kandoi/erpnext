@@ -1136,7 +1136,10 @@ def get_items_for_stock_reco(warehouse, company):
 		.run(as_dict=1)
 	)
 
-	# Item Default has at most one row per (item, company), so no de-dup grouping is needed here.
+	# Item Default holds at most one row per (item, company) -- enforced at the app layer by
+	# Item.validate_item_defaults ("Cannot set multiple Item Defaults for a company"), though not by a
+	# DB-level unique constraint -- so the company filter already yields one row per item and the
+	# original `group by i.name` (an arbitrary-row collapse) is a no-op for valid data.
 	items += (
 		frappe.qb.from_(item)
 		.inner_join(item_default)
