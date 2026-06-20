@@ -94,30 +94,6 @@ jobs:
       - name: Add to Hosts
         run: echo "127.0.0.1 test_site" | sudo tee -a /etc/hosts
 
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: /home/ci/.cache/pip
-          key: arc-pip-${{ hashFiles('**/*requirements.txt', '**/pyproject.toml') }}
-          restore-keys: |
-            arc-pip-
-
-      - name: Cache npm
-        uses: actions/cache@v4
-        with:
-          path: /home/ci/.npm
-          key: arc-npm-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            arc-npm-
-
-      - name: Cache yarn
-        uses: actions/cache@v4
-        with:
-          path: /home/ci/.cache/yarn
-          key: arc-yarn-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: |
-            arc-yarn-
-
       - name: Install
         run: bash ${GITHUB_WORKSPACE}/.github/helper/install.sh
         env:
