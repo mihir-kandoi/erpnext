@@ -54,9 +54,11 @@ jobs:
       DEBIAN_FRONTEND: noninteractive
       NODE_ENV: "production"
       WITH_COVERAGE: ${{ github.event_name != 'pull_request' }}
+      # Dependency caches live under /home/ci/.cache so a persistent volume (or a
+      # cache baked into the image) can warm yarn/uv/pip across runs.
       PIP_CACHE_DIR: /home/ci/.cache/pip
-      npm_config_cache: /home/ci/.npm
-      YARN_CACHE_FOLDER: /tmp/erpnext-ci-yarn-cache
+      npm_config_cache: /home/ci/.cache/npm
+      YARN_CACHE_FOLDER: /home/ci/.cache/yarn
       UV_CACHE_DIR: /home/ci/.cache/uv
 
     strategy:

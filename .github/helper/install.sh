@@ -56,14 +56,11 @@ run_as_ci_user_if_needed() {
         ci_dirs+=("$bench_cache_dir")
     fi
 
-    mkdir -p "${ci_dirs[@]}"
-    chown "$ci_user:$ci_user" "${ci_dirs[@]}"
-    rm -rf "${YARN_CACHE_FOLDER:-$HOME/.cache/yarn}"
-    mkdir -p "${YARN_CACHE_FOLDER:-$HOME/.cache/yarn}" "$HOME/.yarn"
-    chown "$ci_user:$ci_user" "${YARN_CACHE_FOLDER:-$HOME/.cache/yarn}" "$HOME/.yarn"
-    rm -rf "${UV_CACHE_DIR:-$HOME/.cache/uv}"
-    mkdir -p "${UV_CACHE_DIR:-$HOME/.cache/uv}"
-    chown "$ci_user:$ci_user" "${UV_CACHE_DIR:-$HOME/.cache/uv}"
+    # Create + own (non-recursively) the home/cache/workspace dirs before dropping to
+    # the ci user. We deliberately do NOT wipe the yarn/uv caches here so a persistent
+    # cache (mounted volume or baked image layer) stays warm across runs.
+    mkdir -p "${ci_dirs[@]}" "$HOME/.yarn"
+    chown "$ci_user:$ci_user" "${ci_dirs[@]}" "$HOME/.yarn"
 
     export ERPNEXT_CI_NON_ROOT=1
     exec su -m "$ci_user" -s /bin/bash -c "cd '$HOME' && bash '$GITHUB_WORKSPACE/.github/helper/install.sh'"
