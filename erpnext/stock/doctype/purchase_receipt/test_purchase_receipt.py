@@ -5793,6 +5793,35 @@ class TestPurchaseReceipt(ERPNextTestSuite):
 		srbnb_credit = sum(flt(row.credit) for row in gl_entries if row.account == srbnb_account)
 		self.assertAlmostEqual(srbnb_credit, pi_base_net_amount, places=2)
 
+	def test_get_already_received_qty(self):
+		"""get_already_received_qty sums prior submitted PR Item qty against the same PO line,
+		excluding the current PR — covers the converted SUM with `parent != self.name`."""
+		from erpnext.buying.doctype.purchase_order.test_purchase_order import (
+			create_purchase_order,
+			make_pr_against_po,
+		)
+
+		po = create_purchase_order(qty=10)
+		po_detail = po.items[0].name
+
+		make_pr_against_po(po.name, 4)  # PR1 receives 4
+		pr2 = make_pr_against_po(po.name, 2)  # PR2 receives 2
+
+		# already received against this PO line, excluding pr2 itself, is pr1's 4
+		self.assertEqual(pr2.get_already_received_qty(po.name, po_detail), 4.0)
+
+	def test_check_next_docstatus_blocks_with_submitted_invoice(self):
+		"""check_next_docstatus must flag a submitted Purchase Invoice drawn from the receipt —
+		covers the converted child-table get_all (Purchase Invoice Item, docstatus=1)."""
+		pr = make_purchase_receipt()
+		pi = make_purchase_invoice(pr.name)
+		pi.insert()
+		pi.submit()
+
+		with self.assertRaises(frappe.ValidationError) as cm:
+			pr.check_next_docstatus()
+		self.assertIn("is already submitted", str(cm.exception))
+
 
 def create_asset_category_for_pr_test():
 	category_name = "Test Asset Category for PR"

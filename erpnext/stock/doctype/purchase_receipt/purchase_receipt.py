@@ -425,7 +425,7 @@ class PurchaseReceipt(BuyingController):
 			as_list=True,
 		)
 		if submit_rv:
-			frappe.throw(_("Purchase Invoice {0} is already submitted").format(self.submit_rv[0][0]))
+			frappe.throw(_("Purchase Invoice {0} is already submitted").format(submit_rv[0][0]))
 
 	def on_cancel(self):
 		super().on_cancel()
