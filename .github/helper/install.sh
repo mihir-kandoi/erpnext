@@ -24,6 +24,9 @@ run_as_ci_user_if_needed() {
     if ! command -v mariadb_config >/dev/null 2>&1 && ! command -v mysql_config >/dev/null 2>&1; then
         missing_packages+=("libmariadb-dev")
     fi
+    if ! command -v crontab >/dev/null 2>&1; then
+        missing_packages+=("cron")
+    fi
 
     if [ "${#missing_packages[@]}" -gt 0 ]; then
         apt-get update
