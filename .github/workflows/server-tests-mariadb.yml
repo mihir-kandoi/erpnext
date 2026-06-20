@@ -54,6 +54,9 @@ jobs:
       DEBIAN_FRONTEND: noninteractive
       NODE_ENV: "production"
       WITH_COVERAGE: ${{ github.event_name != 'pull_request' }}
+      # Run as the image's build user (uid 1001) so the baked caches under
+      # /home/ci/.cache are writable; a different user can't write those files.
+      ERPNEXT_CI_USER: ci
       # Dependency caches live under /home/ci/.cache so a persistent volume (or a
       # cache baked into the image) can warm yarn/uv/pip across runs.
       PIP_CACHE_DIR: /home/ci/.cache/pip
