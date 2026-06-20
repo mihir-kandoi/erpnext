@@ -217,6 +217,14 @@ fi
 
 
 if [ "$DB" == "mariadb" ];then
+    for _ in {1..60}; do
+        if mariadb-admin ping --host "$db_host" --port 3306 -u root -proot --silent; then
+            break
+        fi
+        sleep 1
+    done
+    mariadb-admin ping --host "$db_host" --port 3306 -u root -proot --silent
+
     mariadb --host "$db_host" --port 3306 -u root -proot -e "SET GLOBAL character_set_server = 'utf8mb4'"
     mariadb --host "$db_host" --port 3306 -u root -proot -e "SET GLOBAL collation_server = 'utf8mb4_unicode_ci'"
 
