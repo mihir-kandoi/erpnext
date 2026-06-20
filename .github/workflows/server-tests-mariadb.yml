@@ -50,7 +50,6 @@ jobs:
       volumes:
         - /opt/erpnext-ci-cache/pip:/github/home/.cache/pip
         - /opt/erpnext-ci-cache/npm:/github/home/.npm
-        - /opt/erpnext-ci-cache/yarn:/github/home/.cache/yarn
         - /opt/erpnext-ci-cache/wkhtmltox:/opt/erpnext-ci-cache/wkhtmltox
         - /opt/erpnext-ci-cache/bench:/opt/erpnext-ci-cache/bench
     defaults:
