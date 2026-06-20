@@ -70,6 +70,19 @@ run_as_ci_user_if_needed() {
 
 run_as_ci_user_if_needed
 
+run_ci_step() {
+    local label=$1
+    shift
+
+    echo "::group::${label}"
+    date -u
+    timeout --foreground "${CI_INSTALL_STEP_TIMEOUT:-600}" "$@"
+    local exit_code=$?
+    date -u
+    echo "::endgroup::"
+    return "$exit_code"
+}
+
 if [ -n "${GITHUB_WORKSPACE:-}" ]; then
     git config --global --add safe.directory "$GITHUB_WORKSPACE" || true
     git config --global --add safe.directory "$GITHUB_WORKSPACE/.git" || true
@@ -254,10 +267,10 @@ fi
 
 cd ~/frappe-bench || exit
 
-bench get-app payments --branch develop
-bench get-app erpnext "${GITHUB_WORKSPACE}"
+run_ci_step "Get payments app" bench get-app payments --branch develop
+run_ci_step "Get erpnext app" bench get-app erpnext "${GITHUB_WORKSPACE}"
 
-if [ "$TYPE" == "server" ]; then bench setup requirements --dev; fi
+if [ "$TYPE" == "server" ]; then run_ci_step "Setup dev requirements" bench setup requirements --dev; fi
 
 bench start >> ~/frappe-bench/bench_start.log 2>&1 &
-bench --site test_site reinstall --yes
+run_ci_step "Reinstall test site" bench --site test_site reinstall --yes

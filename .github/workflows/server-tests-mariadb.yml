@@ -54,9 +54,10 @@ jobs:
       DEBIAN_FRONTEND: noninteractive
       NODE_ENV: "production"
       WITH_COVERAGE: ${{ github.event_name != 'pull_request' }}
-      PIP_CACHE_DIR: /root/.cache/pip
-      npm_config_cache: /root/.npm
-      YARN_CACHE_FOLDER: /root/.cache/yarn
+      PIP_CACHE_DIR: /home/ci/.cache/pip
+      npm_config_cache: /home/ci/.npm
+      YARN_CACHE_FOLDER: /home/ci/.cache/yarn
+      UV_CACHE_DIR: /home/ci/.cache/uv
 
     strategy:
       fail-fast: false
@@ -96,7 +97,7 @@ jobs:
       - name: Cache pip
         uses: actions/cache@v4
         with:
-          path: /root/.cache/pip
+          path: /home/ci/.cache/pip
           key: arc-pip-${{ hashFiles('**/*requirements.txt', '**/pyproject.toml') }}
           restore-keys: |
             arc-pip-
@@ -104,7 +105,7 @@ jobs:
       - name: Cache npm
         uses: actions/cache@v4
         with:
-          path: /root/.npm
+          path: /home/ci/.npm
           key: arc-npm-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
             arc-npm-
@@ -112,7 +113,7 @@ jobs:
       - name: Cache yarn
         uses: actions/cache@v4
         with:
-          path: /root/.cache/yarn
+          path: /home/ci/.cache/yarn
           key: arc-yarn-${{ hashFiles('**/yarn.lock') }}
           restore-keys: |
             arc-yarn-
