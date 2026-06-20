@@ -58,7 +58,6 @@ jobs:
       npm_config_cache: /home/ci/.npm
       YARN_CACHE_FOLDER: /tmp/erpnext-ci-yarn-cache
       UV_CACHE_DIR: /home/ci/.cache/uv
-      CI_INSTALL_STEP_TIMEOUT: "180"
 
     strategy:
       fail-fast: false
