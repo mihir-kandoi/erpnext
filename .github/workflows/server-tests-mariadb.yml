@@ -100,7 +100,7 @@ jobs:
           TYPE: server
           FRAPPE_USER: ${{ github.event.inputs.user }}
           FRAPPE_BRANCH: ${{ github.event.client_payload.sha || github.event.inputs.branch || 'develop' }}
-          DB_HOST: mysql
+          DB_HOST: 127.0.0.1
           DB_USER_HOST: '%'
           WKHTMLTOX_DEB: /tmp/wkhtmltox.deb
           SKIP_SYSTEM_SETUP: "1"
