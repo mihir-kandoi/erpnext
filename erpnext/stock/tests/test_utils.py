@@ -170,3 +170,27 @@ class TestStockUtilities(ERPNextTestSuite, StockTestMixin):
 
 		# returns a single-row result set: [(stock_value,)]
 		self.assertEqual(flt(get_stock_value_from_bin(item_code=item)[0][0]), 5 * 50)
+
+	def test_get_avg_purchase_rate(self):
+		"""get_avg_purchase_rate must average Serial No purchase_rate via the dict-`AVG` get_all
+		field (frappe compiles `[{"AVG": "purchase_rate"}]` to `AVG(purchase_rate)` on both engines)."""
+		from frappe.utils import flt, random_string
+
+		from erpnext.stock.utils import get_avg_purchase_rate
+
+		item = self.make_item(properties={"is_stock_item": 1, "has_serial_no": 1}).name
+		serial_nos = []
+		for rate in (10, 30):
+			sn = "_TAVG" + random_string(8)
+			frappe.get_doc(
+				{
+					"doctype": "Serial No",
+					"serial_no": sn,
+					"item_code": item,
+					"company": "_Test Company",
+					"purchase_rate": rate,
+				}
+			).insert()
+			serial_nos.append(sn)
+
+		self.assertEqual(flt(get_avg_purchase_rate("\n".join(serial_nos))), 20.0)
