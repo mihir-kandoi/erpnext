@@ -145,6 +145,11 @@ save_warm_bench() {
         return
     fi
 
+    if [ -n "$bench_cache_dir" ] && [ ! -w "$bench_cache_dir" ]; then
+        echo "Skipping warm bench save because ${bench_cache_dir} is not writable"
+        return
+    fi
+
     local tmp_archive
     tmp_archive="${bench_cache_archive}.${$}.tmp"
 

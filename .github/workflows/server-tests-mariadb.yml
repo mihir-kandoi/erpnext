@@ -42,7 +42,7 @@ jobs:
     runs-on: erpnext-arc
     timeout-minutes: 60
     container:
-      image: ghcr.io/mihir-kandoi/erpnext-ci-mariadb:py3.14-node24-arc2
+      image: ghcr.io/mihir-kandoi/erpnext-ci-mariadb:py3.14-node24-arc3
       credentials:
         username: ${{ secrets.GHCR_USERNAME || github.actor }}
         password: ${{ secrets.GHCR_TOKEN || github.token }}
@@ -54,9 +54,9 @@ jobs:
       DEBIAN_FRONTEND: noninteractive
       NODE_ENV: "production"
       WITH_COVERAGE: ${{ github.event_name != 'pull_request' }}
-      PIP_CACHE_DIR: /github/home/.cache/pip
-      npm_config_cache: /github/home/.npm
-      YARN_CACHE_FOLDER: /github/home/.cache/yarn
+      PIP_CACHE_DIR: /root/.cache/pip
+      npm_config_cache: /root/.npm
+      YARN_CACHE_FOLDER: /root/.cache/yarn
 
     strategy:
       fail-fast: false
@@ -93,6 +93,30 @@ jobs:
       - name: Add to Hosts
         run: echo "127.0.0.1 test_site" | sudo tee -a /etc/hosts
 
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: /root/.cache/pip
+          key: arc-pip-${{ hashFiles('**/*requirements.txt', '**/pyproject.toml') }}
+          restore-keys: |
+            arc-pip-
+
+      - name: Cache npm
+        uses: actions/cache@v4
+        with:
+          path: /root/.npm
+          key: arc-npm-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            arc-npm-
+
+      - name: Cache yarn
+        uses: actions/cache@v4
+        with:
+          path: /root/.cache/yarn
+          key: arc-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            arc-yarn-
+
       - name: Install
         run: bash ${GITHUB_WORKSPACE}/.github/helper/install.sh
         env:
@@ -103,6 +127,7 @@ jobs:
           DB_HOST: 127.0.0.1
           DB_USER_HOST: '%'
           WKHTMLTOX_DEB: /tmp/wkhtmltox.deb
+          BENCH_CACHE_DIR: /opt/erpnext-ci-cache/bench
           SKIP_SYSTEM_SETUP: "1"
           SKIP_WKHTMLTOX_SETUP: "1"
 
