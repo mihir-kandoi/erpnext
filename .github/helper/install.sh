@@ -134,6 +134,13 @@ restore_warm_bench() {
     if [ -n "$bench_cache_archive" ] && [ -f "$bench_cache_archive" ]; then
         echo "Restoring warm bench from ${bench_cache_archive}"
         tar --use-compress-program=unzstd -xf "$bench_cache_archive" -C ~
+        mkdir -p ~/frappe-bench/sites ~/frappe-bench/logs
+        if [ ! -f ~/frappe-bench/sites/apps.txt ]; then
+            printf "frappe\n" > ~/frappe-bench/sites/apps.txt
+        fi
+        if [ ! -f ~/frappe-bench/sites/common_site_config.json ]; then
+            printf "{}\n" > ~/frappe-bench/sites/common_site_config.json
+        fi
         return 0
     fi
 
@@ -197,7 +204,7 @@ fi
 
 if [ -n "$wkpid" ]; then wait $wkpid; fi
 
-mkdir ~/frappe-bench/sites/test_site
+mkdir -p ~/frappe-bench/sites/test_site
 
 if [ "$DB" == "mariadb" ];then
     cp -r "${GITHUB_WORKSPACE}/.github/helper/site_config_mariadb.json" ~/frappe-bench/sites/test_site/site_config.json
