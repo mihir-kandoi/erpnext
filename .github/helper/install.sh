@@ -266,10 +266,10 @@ if [ "$DB" == "mariadb" ];then
     mariadb --host "$db_host" --port 3306 -u root -proot -e "SET GLOBAL character_set_server = 'utf8mb4'"
     mariadb --host "$db_host" --port 3306 -u root -proot -e "SET GLOBAL collation_server = 'utf8mb4_unicode_ci'"
 
-    # Throwaway-DB durability/perf tuning at runtime. doublewrite=0 skips writing every page
-    # twice (crash safety we don't need here) — roughly halves page-write I/O during reinstall.
+    # Throwaway-DB durability tuning at runtime. (innodb_doublewrite is read-only on MariaDB
+    # 10.6, so it can't be disabled here — would need a server startup flag.)
     mariadb --host "$db_host" --port 3306 -u root -proot \
-        -e "SET GLOBAL innodb_flush_log_at_trx_commit=0; SET GLOBAL sync_binlog=0; SET GLOBAL innodb_doublewrite=0;"
+        -e "SET GLOBAL innodb_flush_log_at_trx_commit=0; SET GLOBAL sync_binlog=0;"
 
     # Opt-in DDL speedup: a shared tablespace avoids a create+fsync per DocType table during
     # reinstall — a big win under disk contention. But ROW_FORMAT=DYNAMIC must be accepted in
