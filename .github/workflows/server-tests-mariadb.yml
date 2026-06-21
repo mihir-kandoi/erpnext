@@ -113,9 +113,10 @@ jobs:
           DB_HOST: 127.0.0.1
           DB_USER_HOST: '%'
           WKHTMLTOX_DEB: /tmp/wkhtmltox.deb
-          # No BENCH_CACHE_DIR: every run does a full `bench init` against live develop
-          # (like GitHub-hosted). The SHA-keyed warm bench rarely hit (develop moves
-          # hourly) and its fast path raced Redis on reinstall. Baked caches + tmpfs stay.
+          # Warm bench: restore a recent base bench and fast-forward it to the exact live
+          # develop SHA (see install.sh) — skips bench init + frappe asset build. Requires a
+          # persistent, ci-writable cache dir on the node (hook-extension hostPath volume).
+          BENCH_CACHE_DIR: /opt/erpnext-ci-cache/bench
           SKIP_SYSTEM_SETUP: "1"
           SKIP_WKHTMLTOX_SETUP: "1"
 

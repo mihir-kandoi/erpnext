@@ -133,10 +133,12 @@ get_bench_cache_archive() {
 
     mkdir -p "$bench_cache_dir"
 
+    # Keyed on tool versions only (NOT the frappe SHA): any recent base bench works, because
+    # restore_warm_bench fast-forwards it to the exact live develop SHA. This is what lets a
+    # constantly-moving develop still hit the cache.
     local cache_key
     cache_key=$(
         {
-            echo "frappe:${frappe_sha}"
             uname -m
             python --version
             node --version
@@ -144,25 +146,35 @@ get_bench_cache_archive() {
         } | sha256sum | awk '{print $1}'
     )
 
-    echo "${bench_cache_dir}/frappe-bench-${cache_key}.tar.zst"
+    echo "${bench_cache_dir}/frappe-bench-base-${cache_key}.tar.zst"
 }
 
 restore_warm_bench() {
     bench_cache_archive=$(get_bench_cache_archive)
-    if [ -n "$bench_cache_archive" ] && [ -f "$bench_cache_archive" ]; then
-        echo "Restoring warm bench from ${bench_cache_archive}"
-        tar --use-compress-program=unzstd -xf "$bench_cache_archive" -C ~
-        mkdir -p ~/frappe-bench/sites ~/frappe-bench/logs
-        if [ ! -f ~/frappe-bench/sites/apps.txt ]; then
-            printf "frappe\n" > ~/frappe-bench/sites/apps.txt
-        fi
-        if [ ! -f ~/frappe-bench/sites/common_site_config.json ]; then
-            printf "{}\n" > ~/frappe-bench/sites/common_site_config.json
-        fi
-        return 0
+    [ -n "$bench_cache_archive" ] && [ -f "$bench_cache_archive" ] || return 1
+
+    echo "Restoring base bench from ${bench_cache_archive}"
+    tar --use-compress-program=unzstd -xf "$bench_cache_archive" -C ~ || return 1
+    [ -d ~/frappe-bench/apps/frappe/.git ] || return 1
+    mkdir -p ~/frappe-bench/sites ~/frappe-bench/logs
+    [ -f ~/frappe-bench/sites/apps.txt ] || printf "frappe\n" > ~/frappe-bench/sites/apps.txt
+    [ -f ~/frappe-bench/sites/common_site_config.json ] || printf "{}\n" > ~/frappe-bench/sites/common_site_config.json
+
+    # Fast-forward the restored frappe to the EXACT live develop SHA fetched in phase 1, then
+    # rebuild only what changed. The editable install means the venv tracks the new code with
+    # no reinstall. Any failure returns non-zero so the caller falls back to a full bench init.
+    if ! (
+        cd ~/frappe-bench/apps/frappe || exit 1
+        git fetch --depth 200 origin "${frappecommitish}" || exit 1
+        git checkout --force "$frappe_sha" 2>/dev/null || exit 1
+    ); then
+        echo "Fast-forward to ${frappe_sha} failed (base too stale?); falling back to full init"
+        rm -rf ~/frappe-bench
+        return 1
     fi
 
-    return 1
+    ( cd ~/frappe-bench && CI=Yes bench build --app frappe ) || { rm -rf ~/frappe-bench; return 1; }
+    return 0
 }
 
 save_warm_bench() {
@@ -246,10 +258,18 @@ if [ "$DB" == "mariadb" ];then
     mariadb --host "$db_host" --port 3306 -u root -proot -e "SET GLOBAL character_set_server = 'utf8mb4'"
     mariadb --host "$db_host" --port 3306 -u root -proot -e "SET GLOBAL collation_server = 'utf8mb4_unicode_ci'"
 
-    # Belt-and-suspenders: also set performance variables at runtime in case
-    # MARIADB_EXTRA_FLAGS was not honoured by the container image.
+    # Throwaway-DB durability/perf tuning at runtime. doublewrite=0 skips writing every page
+    # twice (crash safety we don't need here) — roughly halves page-write I/O during reinstall.
     mariadb --host "$db_host" --port 3306 -u root -proot \
-        -e "SET GLOBAL innodb_flush_log_at_trx_commit=0; SET GLOBAL sync_binlog=0;"
+        -e "SET GLOBAL innodb_flush_log_at_trx_commit=0; SET GLOBAL sync_binlog=0; SET GLOBAL innodb_doublewrite=0;"
+
+    # Opt-in DDL speedup: a shared tablespace avoids a create+fsync per DocType table during
+    # reinstall — a big win under disk contention. But ROW_FORMAT=DYNAMIC must be accepted in
+    # the system tablespace on this MariaDB. Enable with CI_INNODB_SHARED_TABLESPACE=1; if
+    # reinstall then errors on table creation, unset it (off by default — zero risk).
+    if [ "${CI_INNODB_SHARED_TABLESPACE:-0}" = "1" ]; then
+        mariadb --host "$db_host" --port 3306 -u root -proot -e "SET GLOBAL innodb_file_per_table=0;"
+    fi
 
     mariadb --host "$db_host" --port 3306 -u root -proot -e "CREATE USER 'test_frappe'@'${db_user_host}' IDENTIFIED BY 'test_frappe'"
     mariadb --host "$db_host" --port 3306 -u root -proot -e "CREATE DATABASE test_frappe"
