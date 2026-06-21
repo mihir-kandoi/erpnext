@@ -82,11 +82,10 @@ jobs:
           # innodb_flush_log_at_trx_commit=0 avoids an fsync on every commit (biggest win).
           # sync_binlog=0 skips binary-log syncs; innodb_doublewrite=0 skips the doublewrite buffer.
           MARIADB_EXTRA_FLAGS: --innodb-flush-log-at-trx-commit=0 --sync-binlog=0 --innodb-doublewrite=0
-        # DB datadir left on disk (no tmpfs). A RAM-backed datadir is ~1.5GB/job, which
-        # caps concurrency on a 64GB node (≈12 jobs before OOM). On disk each job uses
-        # ~2.5GB, letting ~20 jobs share the node. Slower per job, but it fits in RAM.
-        # Re-add `--tmpfs /var/lib/mysql:size=3g` to trade concurrency back for speed.
-        options: --health-cmd="mariadb-admin ping -h 127.0.0.1 -uroot -proot" --health-interval=5s --health-timeout=2s --health-retries=10
+        # DB datadir on tmpfs (RAM): bench reinstall creates one .ibd file per DocType and
+        # tests are query-heavy; RAM makes both fast (beats GitHub's SSD). size=3g caps
+        # per-DB RAM. This is why concurrency is bounded near 8 on a 64GB node.
+        options: --health-cmd="mariadb-admin ping -h 127.0.0.1 -uroot -proot" --health-interval=5s --health-timeout=2s --health-retries=10 --tmpfs /var/lib/mysql:size=3g
 
     steps:
       - name: Clone

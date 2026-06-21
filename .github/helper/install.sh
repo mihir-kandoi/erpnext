@@ -270,11 +270,5 @@ run_ci_step "Get erpnext app" bench get-app erpnext "${GITHUB_WORKSPACE}"
 
 if [ "$TYPE" == "server" ]; then run_ci_step "Setup dev requirements" bench setup requirements --dev; fi
 
-# Tests need only redis (enqueued jobs run inline in test mode). Strip the web server and
-# workers so `bench start` brings redis up instantly, instead of letting gunicorn's heavy
-# erpnext import starve redis startup under CPU load — that starvation caused flaky test
-# failures once several jobs ran concurrently on one node.
-sed -i -E 's/^(web|worker[a-z_]*):/# \1:/' ~/frappe-bench/Procfile
-
 bench start >> ~/frappe-bench/bench_start.log 2>&1 &
 run_ci_step "Reinstall test site" bench --site test_site reinstall --yes
