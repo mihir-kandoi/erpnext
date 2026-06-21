@@ -188,6 +188,8 @@ jobs:
         with:
           name: Postgres
           flags: postgres
+          # explicit glob: download-artifact extracts each shard into its own coverage-postgres-N/ dir
+          files: coverage-postgres-*/coverage.xml
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: true
           verbose: true
