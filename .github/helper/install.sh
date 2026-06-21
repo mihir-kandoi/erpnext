@@ -173,6 +173,14 @@ restore_warm_bench() {
         return 1
     fi
 
+    # Pick up any frappe dependency changes since the base was built (cached → fast if none),
+    # so a develop commit that bumped requirements doesn't leave a stale venv.
+    if ! ~/frappe-bench/env/bin/python -m pip install -q -e ~/frappe-bench/apps/frappe; then
+        echo "frappe dependency refresh failed; falling back to full init"
+        rm -rf ~/frappe-bench
+        return 1
+    fi
+
     ( cd ~/frappe-bench && CI=Yes bench build --app frappe ) || { rm -rf ~/frappe-bench; return 1; }
     return 0
 }
