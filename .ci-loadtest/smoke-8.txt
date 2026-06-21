@@ -1,1 +1,2 @@
 load smoke 8
+retrigger v2 (20 runners, redis-only, on-disk)
