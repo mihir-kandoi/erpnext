@@ -57,7 +57,9 @@ jobs:
       matrix:
         container: [1, 2, 3, 4]
 
-    name: Python Unit Tests
+    # Distinct from the MariaDB job's "Python Unit Tests" so its check contexts do NOT collide with
+    # the required "Python Unit Tests (1..4)" status checks -- this keeps Postgres non-required for now.
+    name: Postgres Unit Tests
 
     services:
       postgres:
