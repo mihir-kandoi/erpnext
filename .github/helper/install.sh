@@ -271,4 +271,35 @@ run_ci_step "Get erpnext app" bench get-app erpnext "${GITHUB_WORKSPACE}"
 if [ "$TYPE" == "server" ]; then run_ci_step "Setup dev requirements" bench setup requirements --dev; fi
 
 bench start >> ~/frappe-bench/bench_start.log 2>&1 &
+
+# Under heavy concurrency, gunicorn's startup can delay redis coming up. reinstall and the
+# tests need redis, so wait for it (best-effort, bounded) instead of racing — contention
+# then slows the job rather than failing it.
+wait_for_redis() {
+    local cfg=~/frappe-bench/sites/common_site_config.json
+    [ -f "$cfg" ] || return 0
+    local ports port
+    ports=$(python - "$cfg" <<'PY'
+import json, re, sys
+try:
+    cfg = json.load(open(sys.argv[1]))
+except Exception:
+    sys.exit(0)
+for key in ("redis_cache", "redis_queue"):
+    match = re.search(r":(\d+)", str(cfg.get(key, "")))
+    if match:
+        print(match.group(1))
+PY
+)
+    for port in $ports; do
+        for _ in $(seq 1 120); do
+            if (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then
+                exec 3>&- 3<&-
+                break
+            fi
+            sleep 1
+        done
+    done
+}
+wait_for_redis
 run_ci_step "Reinstall test site" bench --site test_site reinstall --yes
