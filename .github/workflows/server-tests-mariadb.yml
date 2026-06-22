@@ -103,6 +103,33 @@ jobs:
       - name: Add to Hosts
         run: echo "127.0.0.1 test_site" | sudo tee -a /etc/hosts
 
+      # Same dependency caching GitHub-hosted uses, adapted: bench uses `uv pip install`, so
+      # cache uv (not just pip). Caches restore as the container's root user; chown them to
+      # the ci user that install.sh runs as.
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: /home/ci/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/*requirements.txt', '**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      - name: Cache uv
+        uses: actions/cache@v4
+        with:
+          path: /home/ci/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/*requirements.txt', '**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+      - name: Cache yarn
+        uses: actions/cache@v4
+        with:
+          path: /home/ci/.cache/yarn
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+      - name: Fix cache ownership for ci user
+        run: chown -R 1001:1001 /home/ci/.cache || true
+
       - name: Install
         run: bash ${GITHUB_WORKSPACE}/.github/helper/install.sh
         env:
@@ -113,10 +140,6 @@ jobs:
           DB_HOST: 127.0.0.1
           DB_USER_HOST: '%'
           WKHTMLTOX_DEB: /tmp/wkhtmltox.deb
-          # Warm bench: restore a recent base bench and fast-forward it to the exact live
-          # develop SHA (see install.sh) — skips bench init + frappe asset build. Requires a
-          # persistent, ci-writable cache dir on the node (hook-extension hostPath volume).
-          BENCH_CACHE_DIR: /opt/erpnext-ci-cache/bench
           SKIP_SYSTEM_SETUP: "1"
           SKIP_WKHTMLTOX_SETUP: "1"
 
