@@ -2,3 +2,4 @@ load smoke 4
 retrigger v2 (20 runners, redis-only, on-disk)
 load v3: 20-wide disk+web+redis-wait
 pressure retrigger
+retrigger after image restore
