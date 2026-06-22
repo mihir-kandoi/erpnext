@@ -74,13 +74,10 @@ jobs:
 
     services:
       mysql:
-        # CI-tuned MariaDB 10.11: my.cnf bakes nosync flush + innodb_doublewrite=0 (read-only
-        # at runtime on 10.x) for fsync-free DDL on disk. 10.11 also allows ROW_FORMAT=DYNAMIC
-        # in the system tablespace, so CI_INNODB_SHARED_TABLESPACE is safe.
-        image: ghcr.io/mihir-kandoi/mariadb-ci:10.11-fast
-        credentials:
-          username: ${{ secrets.GHCR_USERNAME || github.actor }}
-          password: ${{ secrets.GHCR_TOKEN || github.token }}
+        # Stock mariadb:10.6. A custom my.cnf (nosync/doublewrite=0) was tested and gave NO
+        # reinstall speedup — on NVMe the cost is overlayfs small-file + CPU schema-sync, not
+        # fsync. Not worth a custom image.
+        image: mariadb:10.6
         env:
           TZ: 'Asia/Kolkata'
           MARIADB_ROOT_PASSWORD: 'root'
