@@ -3,3 +3,4 @@ retrigger v2 (20 runners, redis-only, on-disk)
 load v3: 20-wide disk+web+redis-wait
 warm-bench pass 1 (seed base)
 retest after doublewrite fix
+pressure retrigger
