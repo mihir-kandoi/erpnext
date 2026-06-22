@@ -1,3 +1,4 @@
 load smoke 10
 retrigger v2 (20 runners, redis-only, on-disk)
 load v3: 20-wide disk+web+redis-wait
+pressure retrigger
