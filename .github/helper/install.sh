@@ -165,10 +165,13 @@ restore_warm_bench() {
     # no reinstall. Any failure returns non-zero so the caller falls back to a full bench init.
     if ! (
         cd ~/frappe-bench/apps/frappe || exit 1
-        git fetch --depth 200 origin "${frappecommitish}" || exit 1
-        git checkout --force "$frappe_sha" 2>/dev/null || exit 1
+        # Phase 1 already fetched ~/frappe to the exact live develop SHA. Fetch that commit
+        # straight from it (bench init names the remote 'upstream', not 'origin', and points
+        # it at this local clone — so a plain `git fetch origin` does not work).
+        git fetch --no-tags "$HOME/frappe" HEAD || exit 1
+        git checkout --force FETCH_HEAD || exit 1
     ); then
-        echo "Fast-forward to ${frappe_sha} failed (base too stale?); falling back to full init"
+        echo "Fast-forward to ${frappe_sha} failed; falling back to full init"
         rm -rf ~/frappe-bench
         return 1
     fi
