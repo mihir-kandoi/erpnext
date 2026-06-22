@@ -103,31 +103,10 @@ jobs:
       - name: Add to Hosts
         run: echo "127.0.0.1 test_site" | sudo tee -a /etc/hosts
 
-      # Same dependency caching GitHub-hosted uses, adapted: bench uses `uv pip install`, so
-      # cache uv (not just pip). The image's /home/ci/.cache is ci-owned and the cache tar
-      # round-trips ownership, so no chown is needed.
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: /home/ci/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/*requirements.txt', '**/pyproject.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-      - name: Cache uv
-        uses: actions/cache@v4
-        with:
-          path: /home/ci/.cache/uv
-          key: ${{ runner.os }}-uv-${{ hashFiles('**/*requirements.txt', '**/pyproject.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-uv-
-      - name: Cache yarn
-        uses: actions/cache@v4
-        with:
-          path: /home/ci/.cache/yarn
-          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-yarn-
-
+      # No actions/cache here: the uv/pip/yarn caches under /home/ci/.cache are kept warm by a
+      # persistent, ci-owned hostPath volume on the node (mounted via the hook-extension). On
+      # a self-hosted box a local NVMe cache restores instantly, avoiding the ~60s round-trip
+      # to GitHub's cache backend that actions/cache pays for the large yarn cache.
       - name: Install
         run: bash ${GITHUB_WORKSPACE}/.github/helper/install.sh
         env:
