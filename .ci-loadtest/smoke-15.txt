@@ -1,1 +1,2 @@
 load smoke 15
+retrigger after image restore
