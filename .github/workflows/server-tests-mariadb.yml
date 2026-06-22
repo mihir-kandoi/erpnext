@@ -123,9 +123,9 @@ jobs:
           DB_HOST: 127.0.0.1
           DB_USER_HOST: '%'
           WKHTMLTOX_DEB: /tmp/wkhtmltox.deb
-          # Shared tablespace: skips a create+fsync per DocType .ibd during reinstall (safe on
-          # MariaDB 10.11, which permits ROW_FORMAT=DYNAMIC in the system tablespace).
-          CI_INNODB_SHARED_TABLESPACE: "1"
+          # NOTE: innodb_file_per_table=0 (CI_INNODB_SHARED_TABLESPACE) is NOT usable — frappe's
+          # ROW_FORMAT=DYNAMIC tables are rejected in the shared tablespace (errno 140), even on
+          # 10.11. The fsync-free win comes from the tuned mariadb image's my.cnf instead.
           SKIP_SYSTEM_SETUP: "1"
           SKIP_WKHTMLTOX_SETUP: "1"
 
