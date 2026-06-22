@@ -104,8 +104,8 @@ jobs:
         run: echo "127.0.0.1 test_site" | sudo tee -a /etc/hosts
 
       # Same dependency caching GitHub-hosted uses, adapted: bench uses `uv pip install`, so
-      # cache uv (not just pip). Caches restore as the container's root user; chown them to
-      # the ci user that install.sh runs as.
+      # cache uv (not just pip). The image's /home/ci/.cache is ci-owned and the cache tar
+      # round-trips ownership, so no chown is needed.
       - name: Cache pip
         uses: actions/cache@v4
         with:
@@ -127,8 +127,6 @@ jobs:
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
           restore-keys: |
             ${{ runner.os }}-yarn-
-      - name: Fix cache ownership for ci user
-        run: chown -R 1001:1001 /home/ci/.cache || true
 
       - name: Install
         run: bash ${GITHUB_WORKSPACE}/.github/helper/install.sh
