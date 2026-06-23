@@ -125,6 +125,11 @@ jobs:
           # 10.11. The fsync-free win comes from the tuned mariadb image's my.cnf instead.
           SKIP_SYSTEM_SETUP: "1"
           SKIP_WKHTMLTOX_SETUP: "1"
+          # CI site-setup A/B (restore a baked baseline vs full reinstall).
+          # Phase 1 (now): generate the baseline. Phase 2: flip to
+          # CI_GENERATE_BASELINE "0" + CI_RESTORE_FROM_BACKUP "1" to measure restore+migrate.
+          CI_GENERATE_BASELINE: "1"
+          CI_RESTORE_FROM_BACKUP: "0"
 
       - name: Run Tests
         run: |
