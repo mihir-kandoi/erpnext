@@ -37,10 +37,28 @@ concurrency:
   group: server-mariadb-develop-${{ github.event_name }}-${{ github.event.number || github.event_name == 'workflow_dispatch' && github.run_id || '' }}
   cancel-in-progress: true
 
+# Shared across both jobs. Both run in the SAME arc4 container so the bench lives at the
+# identical path (/home/ci/frappe-bench) on the GitHub-hosted setup runner and the self-hosted
+# test runners — that's what makes the packaged Python venv portable between them.
+env:
+  TZ: 'Asia/Kolkata'
+  DEBIAN_FRONTEND: noninteractive
+  NODE_ENV: "production"
+  WITH_COVERAGE: ${{ github.event_name != 'pull_request' }}
+  ERPNEXT_CI_USER: ci
+  PIP_CACHE_DIR: /home/ci/.cache/pip
+  npm_config_cache: /home/ci/.cache/npm
+  YARN_CACHE_FOLDER: /home/ci/.cache/yarn
+  UV_CACHE_DIR: /home/ci/.cache/uv
+
 jobs:
-  test:
-    runs-on: erpnext-arc
-    timeout-minutes: 60
+  # Build the bench (clone + pip + yarn + assets) and reinstall test_site ONCE, on a free
+  # GitHub-hosted runner, then publish the whole bench (with a DB dump baked in) as an artifact.
+  # The expensive, non-parallelisable work happens here exactly once instead of on every shard.
+  setup:
+    name: Build & reinstall (setup)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
     container:
       image: ghcr.io/mihir-kandoi/erpnext-ci-mariadb:py3.14-node24-arc4
       credentials:
@@ -49,46 +67,13 @@ jobs:
     defaults:
       run:
         shell: bash
-    env:
-      TZ: 'Asia/Kolkata'
-      DEBIAN_FRONTEND: noninteractive
-      NODE_ENV: "production"
-      WITH_COVERAGE: ${{ github.event_name != 'pull_request' }}
-      # Run as the image's build user (uid 1001) so the baked caches under
-      # /home/ci/.cache are writable; a different user can't write those files.
-      ERPNEXT_CI_USER: ci
-      # Dependency caches live under /home/ci/.cache so a persistent volume (or a
-      # cache baked into the image) can warm yarn/uv/pip across runs.
-      PIP_CACHE_DIR: /home/ci/.cache/pip
-      npm_config_cache: /home/ci/.cache/npm
-      YARN_CACHE_FOLDER: /home/ci/.cache/yarn
-      UV_CACHE_DIR: /home/ci/.cache/uv
-
-    strategy:
-      fail-fast: false
-
-      matrix:
-        container: [1, 2, 3, 4]
-
-    name: Python Unit Tests (ARC)
-
     services:
       mysql:
-        # Stock mariadb:10.6. A custom my.cnf (nosync/doublewrite=0) was tested and gave NO
-        # reinstall speedup — on NVMe the cost is overlayfs small-file + CPU schema-sync, not
-        # fsync. Not worth a custom image.
         image: mariadb:10.6
         env:
           TZ: 'Asia/Kolkata'
           MARIADB_ROOT_PASSWORD: 'root'
-          # Disable durability guarantees that are unnecessary in a throwaway CI container.
-          # innodb_flush_log_at_trx_commit=0 avoids an fsync on every commit (biggest win).
-          # sync_binlog=0 skips binary-log syncs; innodb_doublewrite=0 skips the doublewrite buffer.
           MARIADB_EXTRA_FLAGS: --innodb-flush-log-at-trx-commit=0 --sync-binlog=0 --innodb-doublewrite=0
-        # DB datadir on disk (no tmpfs) so ~20 jobs fit in 64GB RAM (tmpfs is ~1.5GB/job and
-        # caps concurrency near 8). Slower per job — the trade for 20-wide on one box. The
-        # web server stays up (PDF tests need it) and install.sh waits for redis before
-        # reinstall, so contention slows jobs rather than failing them.
         options: --health-cmd="mariadb-admin ping -h 127.0.0.1 -uroot -proot" --health-interval=5s --health-timeout=2s --health-retries=10
 
     steps:
@@ -106,10 +91,8 @@ jobs:
       - name: Add to Hosts
         run: echo "127.0.0.1 test_site" | sudo tee -a /etc/hosts
 
-      # No actions/cache here: the uv/pip/yarn caches under /home/ci/.cache are kept warm by a
-      # persistent, ci-owned hostPath volume on the node (mounted via the hook-extension). On
-      # a self-hosted box a local NVMe cache restores instantly, avoiding the ~60s round-trip
-      # to GitHub's cache backend that actions/cache pays for the large yarn cache.
+      # Full install: bench init + get-app + build + reinstall, and (CI_GENERATE_BASELINE) dump
+      # the freshly-reinstalled DB into the bench dir so it travels inside the artifact.
       - name: Install
         run: bash ${GITHUB_WORKSPACE}/.github/helper/install.sh
         env:
@@ -120,16 +103,78 @@ jobs:
           DB_HOST: 127.0.0.1
           DB_USER_HOST: '%'
           WKHTMLTOX_DEB: /tmp/wkhtmltox.deb
-          # NOTE: innodb_file_per_table=0 (CI_INNODB_SHARED_TABLESPACE) is NOT usable — frappe's
-          # ROW_FORMAT=DYNAMIC tables are rejected in the shared tablespace (errno 140), even on
-          # 10.11. The fsync-free win comes from the tuned mariadb image's my.cnf instead.
           SKIP_SYSTEM_SETUP: "1"
           SKIP_WKHTMLTOX_SETUP: "1"
-          # CI site-setup A/B (restore a baked baseline vs full reinstall).
-          # Phase 1 (now): generate the baseline. Phase 2: flip to
-          # CI_GENERATE_BASELINE "0" + CI_RESTORE_FROM_BACKUP "1" to measure restore+migrate.
           CI_GENERATE_BASELINE: "1"
-          CI_RESTORE_FROM_BACKUP: "0"
+          CI_BASELINE_BACKUP: /home/ci/frappe-bench/test_site-db.sql.gz
+
+      # Package the whole bench (apps, venv, node_modules, sites, the DB dump, and hydrate.sh)
+      # into one artifact for the test shards to consume.
+      - name: Package bench for test shards
+        run: |
+          cp "${GITHUB_WORKSPACE}/.github/helper/hydrate.sh" /home/ci/frappe-bench/hydrate.sh
+          tar czpf "${GITHUB_WORKSPACE}/bench.tar.gz" -C /home/ci frappe-bench
+          ls -lh "${GITHUB_WORKSPACE}/bench.tar.gz"
+
+      - name: Upload bench artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-and-db
+          path: bench.tar.gz
+          retention-days: 1
+          compression-level: 0
+
+  # Fan-out: each shard downloads the bench, untars it, restores the DB dump, and runs its
+  # slice of the suite. No clone, no build, no reinstall on the self-hosted boxes.
+  test:
+    name: Python Unit Tests (ARC)
+    needs: setup
+    runs-on: erpnext-arc
+    timeout-minutes: 60
+    container:
+      image: ghcr.io/mihir-kandoi/erpnext-ci-mariadb:py3.14-node24-arc4
+      credentials:
+        username: ${{ secrets.GHCR_USERNAME || github.actor }}
+        password: ${{ secrets.GHCR_TOKEN || github.token }}
+    defaults:
+      run:
+        shell: bash
+
+    strategy:
+      fail-fast: false
+      matrix:
+        container: [1, 2, 3, 4]
+
+    services:
+      mysql:
+        image: mariadb:10.6
+        env:
+          TZ: 'Asia/Kolkata'
+          MARIADB_ROOT_PASSWORD: 'root'
+          MARIADB_EXTRA_FLAGS: --innodb-flush-log-at-trx-commit=0 --sync-binlog=0 --innodb-doublewrite=0
+        options: --health-cmd="mariadb-admin ping -h 127.0.0.1 -uroot -proot" --health-interval=5s --health-timeout=2s --health-retries=10
+
+    steps:
+      - name: Download bench artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: bench-and-db
+
+      - name: Add to Hosts
+        run: echo "127.0.0.1 test_site" | sudo tee -a /etc/hosts
+
+      # -p preserves the ci (uid 1001) ownership baked into the tar, so bench runs as ci cleanly.
+      - name: Untar bench
+        run: |
+          tar xzpf "${GITHUB_WORKSPACE}/bench.tar.gz" -C /home/ci
+          ls -ld /home/ci/frappe-bench
+
+      - name: Hydrate (DB up + restore + bench start)
+        run: bash /home/ci/frappe-bench/hydrate.sh
+        env:
+          DB_HOST: 127.0.0.1
+          SKIP_SYSTEM_SETUP: "1"
+          CI_BASELINE_BACKUP: /home/ci/frappe-bench/test_site-db.sql.gz
 
       - name: Run Tests
         run: |
@@ -145,7 +190,6 @@ jobs:
         env:
           TYPE: server
 
-
       - name: Show bench output
         if: ${{ always() }}
         run: cat ~/frappe-bench/bench_start.log || true
@@ -155,7 +199,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: coverage-${{ matrix.container }}
-          path: /github/home/frappe-bench/sites/coverage.xml
+          path: /home/ci/frappe-bench/sites/coverage.xml
 
   coverage:
     name: Coverage Wrap Up
