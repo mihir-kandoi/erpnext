@@ -1,0 +1,58 @@
+#!/bin/bash
+#
+# Run MariaDB INSIDE the runner container, on a datadir we control. Because the datadir can be
+# packaged into the bench artifact, test shards start an already-loaded server instead of
+# replaying a SQL dump (the ~60s hydrate restore). Each shard gets its own copy → isolation kept.
+#
+# CI_DB_DATADIR picks the path:
+#   - setup job:  /home/ci/db-data  (OUTSIDE the bench, so install.sh's `rm -rf ~/frappe-bench`
+#                 doesn't wipe it; it's moved into the bench just before packaging)
+#   - test shard: ~/frappe-bench/mariadb-data  (where the artifact untar'd it)
+#
+# Idempotent: inits a fresh datadir if absent (setup), else starts on the existing one (shards).
+#
+set -e
+
+ci_user="${ERPNEXT_CI_USER:-frappe}"
+
+# Re-exec as the ci user so mariadbd and the datadir are owned consistently (root mariadbd is
+# refused anyway). Mirrors install.sh's user switch.
+if [ "$(id -u)" = "0" ] && [ "${SKIP_SYSTEM_SETUP:-0}" = "1" ] && [ "$ci_user" != "root" ]; then
+    exec su -m "$ci_user" -s /bin/bash -c \
+        "ERPNEXT_CI_USER='$ci_user' CI_DB_DATADIR='${CI_DB_DATADIR:-}' bash '$0'"
+fi
+
+DATADIR="${CI_DB_DATADIR:-$HOME/frappe-bench/mariadb-data}"
+SOCK="$DATADIR/mysqld.sock"
+fresh=0
+
+if [ ! -d "$DATADIR/mysql" ]; then
+    mkdir -p "$DATADIR"
+    mariadb-install-db --no-defaults --datadir="$DATADIR" \
+        --auth-root-authentication-method=normal --skip-test-db >/dev/null 2>&1
+    fresh=1
+fi
+
+# Throwaway-CI durability off; bind TCP 127.0.0.1:3306 so bench/install.sh connect as usual.
+mariadbd --no-defaults --datadir="$DATADIR" --socket="$SOCK" --pid-file="$DATADIR/mysqld.pid" \
+    --port=3306 --bind-address=127.0.0.1 \
+    --innodb-flush-log-at-trx-commit=0 --sync-binlog=0 --skip-log-bin \
+    > "$HOME/mariadb.log" 2>&1 &
+
+for _ in $(seq 1 60); do
+    mariadb-admin --socket="$SOCK" ping --silent 2>/dev/null && break
+    sleep 1
+done
+
+if [ "$fresh" = "1" ]; then
+    # A fresh datadir has only a password-less root@localhost. Give it the password install.sh
+    # uses, plus a TCP-reachable root@127.0.0.1, so the rest of install.sh works unchanged.
+    mariadb --no-defaults --socket="$SOCK" -u root <<'SQL'
+ALTER USER 'root'@'localhost' IDENTIFIED BY 'root';
+CREATE USER IF NOT EXISTS 'root'@'127.0.0.1' IDENTIFIED BY 'root';
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'127.0.0.1' WITH GRANT OPTION;
+FLUSH PRIVILEGES;
+SQL
+fi
+
+echo "MariaDB up in-container (datadir=$DATADIR, fresh=$fresh)"

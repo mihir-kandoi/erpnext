@@ -23,23 +23,10 @@ fi
 
 cd ~/frappe-bench
 
-# MariaDB readiness + throwaway-DB tuning. The shard's mysql service is empty; `bench restore`
-# (below) creates the DB and loads the dump, so no manual CREATE DATABASE is needed.
-for _ in {1..60}; do
-    mariadb-admin ping --host "$db_host" --port 3306 -u root -proot --silent && break
-    sleep 1
-done
-mariadb --host "$db_host" --port 3306 -u root -proot \
-    -e "SET GLOBAL character_set_server='utf8mb4'; SET GLOBAL collation_server='utf8mb4_unicode_ci'; SET GLOBAL innodb_flush_log_at_trx_commit=0; SET GLOBAL sync_binlog=0;"
-
-# Restore the site DB from the artifact dump — this is what replaces the per-shard reinstall.
-# We load it with the mariadb client directly instead of `bench restore`, because bench restore
-# shells out to the `file` utility (not installed in the runner image) to sniff compression.
-mariadb --host "$db_host" --port 3306 -u root -proot -e \
-    "DROP DATABASE IF EXISTS test_frappe; CREATE DATABASE test_frappe; \
-     CREATE USER IF NOT EXISTS 'test_frappe'@'%' IDENTIFIED BY 'test_frappe'; \
-     GRANT ALL PRIVILEGES ON \`test_frappe\`.* TO 'test_frappe'@'%'; FLUSH PRIVILEGES;"
-gunzip -c "$dump" | mariadb --host "$db_host" --port 3306 -u root -proot test_frappe
+# Start MariaDB in-container on the datadir baked into the artifact. The DB is already populated
+# (the setup job reinstalled into this very datadir), so there is NO restore — the server just
+# comes up on the existing files. This is what replaces the per-shard SQL replay.
+bash ~/frappe-bench/start-db.sh
 
 # Bring up bench (redis + web; PDF tests need the web server) and wait for redis, as install.sh.
 bench start >> ~/frappe-bench/bench_start.log 2>&1 &

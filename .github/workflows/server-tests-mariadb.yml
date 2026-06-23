@@ -63,22 +63,13 @@ jobs:
     runs-on: erpnext-arc
     timeout-minutes: 40
     container:
-      image: ghcr.io/mihir-kandoi/erpnext-ci-mariadb:py3.14-node24-arc4
+      image: ghcr.io/mihir-kandoi/erpnext-ci-mariadb:py3.14-node24-arc5
       credentials:
         username: ${{ secrets.GHCR_USERNAME || github.actor }}
         password: ${{ secrets.GHCR_TOKEN || github.token }}
     defaults:
       run:
         shell: bash
-    services:
-      mysql:
-        image: mariadb:10.6
-        env:
-          TZ: 'Asia/Kolkata'
-          MARIADB_ROOT_PASSWORD: 'root'
-          MARIADB_EXTRA_FLAGS: --innodb-flush-log-at-trx-commit=0 --sync-binlog=0 --innodb-doublewrite=0
-        options: --health-cmd="mariadb-admin ping -h 127.0.0.1 -uroot -proot" --health-interval=5s --health-timeout=2s --health-retries=10
-
     steps:
       - name: Clone
         uses: actions/checkout@v6
@@ -94,8 +85,15 @@ jobs:
       - name: Add to Hosts
         run: echo "127.0.0.1 test_site" | sudo tee -a /etc/hosts
 
-      # Full install: bench init + get-app + build + reinstall, and (CI_GENERATE_BASELINE) dump
-      # the freshly-reinstalled DB into the bench dir so it travels inside the artifact.
+      # MariaDB runs in-container on a datadir OUTSIDE the bench, because install.sh's next step
+      # does `rm -rf ~/frappe-bench`. After the reinstall, the datadir is moved into the bench so
+      # it ships in the artifact — test shards then start an already-loaded server (no restore).
+      - name: Start DB
+        run: bash ${GITHUB_WORKSPACE}/.github/helper/start-db.sh
+        env:
+          SKIP_SYSTEM_SETUP: "1"
+          CI_DB_DATADIR: /home/ci/db-data
+
       - name: Install
         run: bash ${GITHUB_WORKSPACE}/.github/helper/install.sh
         env:
@@ -108,17 +106,23 @@ jobs:
           WKHTMLTOX_DEB: /tmp/wkhtmltox.deb
           SKIP_SYSTEM_SETUP: "1"
           SKIP_WKHTMLTOX_SETUP: "1"
-          CI_GENERATE_BASELINE: "1"
-          CI_BASELINE_BACKUP: /home/ci/frappe-bench/test_site-db.sql.gz
+
+      # Clean shutdown (consistent InnoDB datadir), then stage it inside the bench for packaging.
+      - name: Stop DB and stage datadir
+        run: |
+          mariadb-admin -h 127.0.0.1 -P 3306 -u root -proot shutdown || true
+          for _ in $(seq 1 30); do [ -f /home/ci/db-data/mysqld.pid ] || break; sleep 1; done
+          mv /home/ci/db-data /home/ci/frappe-bench/mariadb-data
 
       # Package the whole bench (apps, venv, node_modules, sites, the DB dump, and hydrate.sh)
       # into one artifact for the test shards to consume.
       - name: Package bench for test shards
         run: |
           cp "${GITHUB_WORKSPACE}/.github/helper/hydrate.sh" /home/ci/frappe-bench/hydrate.sh
-          # Exclude what server tests don't need: the apps' git history and node_modules
-          # (frontend deps; the built assets under sites/assets are already included). This
-          # shrinks the artifact a lot, cutting the per-shard download time.
+          cp "${GITHUB_WORKSPACE}/.github/helper/start-db.sh" /home/ci/frappe-bench/start-db.sh
+          # Exclude what server tests don't need: the apps' git history and node_modules (frontend
+          # deps; the built assets under sites/assets are already included). The mariadb-data
+          # datadir IS included — that's the pre-loaded DB the shards start on instead of restoring.
           tar czpf "${GITHUB_WORKSPACE}/bench.tar.gz" -C /home/ci \
             --exclude='.git' --exclude='node_modules' frappe-bench
           ls -lh "${GITHUB_WORKSPACE}/bench.tar.gz"
@@ -139,7 +143,7 @@ jobs:
     runs-on: erpnext-arc
     timeout-minutes: 60
     container:
-      image: ghcr.io/mihir-kandoi/erpnext-ci-mariadb:py3.14-node24-arc4
+      image: ghcr.io/mihir-kandoi/erpnext-ci-mariadb:py3.14-node24-arc5
       credentials:
         username: ${{ secrets.GHCR_USERNAME || github.actor }}
         password: ${{ secrets.GHCR_TOKEN || github.token }}
@@ -151,15 +155,6 @@ jobs:
       fail-fast: false
       matrix:
         container: [1, 2, 3, 4]
-
-    services:
-      mysql:
-        image: mariadb:10.6
-        env:
-          TZ: 'Asia/Kolkata'
-          MARIADB_ROOT_PASSWORD: 'root'
-          MARIADB_EXTRA_FLAGS: --innodb-flush-log-at-trx-commit=0 --sync-binlog=0 --innodb-doublewrite=0
-        options: --health-cmd="mariadb-admin ping -h 127.0.0.1 -uroot -proot" --health-interval=5s --health-timeout=2s --health-retries=10
 
     steps:
       - name: Download bench artifact
