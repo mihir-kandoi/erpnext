@@ -116,24 +116,21 @@ jobs:
 
       # Package the whole bench (apps, venv, node_modules, sites, the DB dump, and hydrate.sh)
       # into one artifact for the test shards to consume.
-      - name: Package bench for test shards
+      # Single-node hand-off: stage the bench on a node-local hostPath instead of round-tripping
+      # through GitHub artifact storage (~60s/shard). Setup and shards share the same disk, so
+      # the shards just untar it locally. NOTE: this assumes one node — a shard on a different
+      # node could not read this path (then you'd need GitHub artifacts or an NFS/RWX volume).
+      - name: Stage bench on node (hostPath)
         run: |
           cp "${GITHUB_WORKSPACE}/.github/helper/hydrate.sh" /home/ci/frappe-bench/hydrate.sh
           cp "${GITHUB_WORKSPACE}/.github/helper/start-db.sh" /home/ci/frappe-bench/start-db.sh
-          # Exclude what server tests don't need: the apps' git history and node_modules (frontend
-          # deps; the built assets under sites/assets are already included). The mariadb-data
-          # datadir IS included — that's the pre-loaded DB the shards start on instead of restoring.
-          tar czpf "${GITHUB_WORKSPACE}/bench.tar.gz" -C /home/ci \
+          mkdir -p /opt/ci-bench-staging
+          # self-clean: drop bench tars from runs older than 2h
+          find /opt/ci-bench-staging -maxdepth 1 -name '*.tar.gz' -mmin +120 -delete 2>/dev/null || true
+          # Exclude .git/node_modules; the mariadb-data datadir IS included (the pre-loaded DB).
+          tar czpf "/opt/ci-bench-staging/${GITHUB_RUN_ID}.tar.gz" -C /home/ci \
             --exclude='.git' --exclude='node_modules' frappe-bench
-          ls -lh "${GITHUB_WORKSPACE}/bench.tar.gz"
-
-      - name: Upload bench artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: bench-and-db
-          path: bench.tar.gz
-          retention-days: 1
-          compression-level: 0
+          ls -lh "/opt/ci-bench-staging/${GITHUB_RUN_ID}.tar.gz"
 
   # Fan-out: each shard downloads the bench, untars it, restores the DB dump, and runs its
   # slice of the suite. No clone, no build, no reinstall on the self-hosted boxes.
@@ -157,18 +154,14 @@ jobs:
         container: [1, 2, 3, 4]
 
     steps:
-      - name: Download bench artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: bench-and-db
-
       - name: Add to Hosts
         run: echo "127.0.0.1 test_site" | sudo tee -a /etc/hosts
 
-      # -p preserves the ci (uid 1001) ownership baked into the tar, so bench runs as ci cleanly.
-      - name: Untar bench
+      # Read the bench straight from the node-local hostPath the setup job staged it on — no
+      # GitHub download. -p preserves the ci (uid 1001) ownership so bench runs as ci cleanly.
+      - name: Untar bench from node (hostPath)
         run: |
-          tar xzpf "${GITHUB_WORKSPACE}/bench.tar.gz" -C /home/ci
+          tar xzpf "/opt/ci-bench-staging/${GITHUB_RUN_ID}.tar.gz" -C /home/ci
           ls -ld /home/ci/frappe-bench
 
       - name: Hydrate (DB up + restore + bench start)
