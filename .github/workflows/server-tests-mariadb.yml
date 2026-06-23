@@ -57,7 +57,10 @@ jobs:
   # The expensive, non-parallelisable work happens here exactly once instead of on every shard.
   setup:
     name: Build & reinstall (setup)
-    runs-on: ubuntu-latest
+    # Self-hosted: same arc4 container + /home/ci path + 127.0.0.1 DB as the test shards, so the
+    # packaged bench (and its venv) transplants cleanly. GitHub-hosted forces HOME=/github/home
+    # and routes services by label, which broke venv portability and the DB connection.
+    runs-on: erpnext-arc
     timeout-minutes: 40
     container:
       image: ghcr.io/mihir-kandoi/erpnext-ci-mariadb:py3.14-node24-arc4
