@@ -4,3 +4,4 @@ load v3: 20-wide disk+web+redis-wait
 pressure retrigger
 retrigger after image restore
 10-PR stress test
+two-node spread test
