@@ -5,3 +5,4 @@ pressure retrigger
 retrigger after image restore
 10-PR stress test
 two-node spread test
+all-self-hosted 4-shard test
