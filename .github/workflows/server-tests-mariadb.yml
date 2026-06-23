@@ -37,9 +37,9 @@ concurrency:
   group: server-mariadb-develop-${{ github.event_name }}-${{ github.event.number || github.event_name == 'workflow_dispatch' && github.run_id || '' }}
   cancel-in-progress: true
 
-# Shared across both jobs. Both run in the SAME arc4 container so the bench lives at the
-# identical path (/home/ci/frappe-bench) on the GitHub-hosted setup runner and the self-hosted
-# test runners — that's what makes the packaged Python venv portable between them.
+# Shared across both jobs. Both run in the SAME CI image so the bench lives at the identical
+# path (/home/ci/frappe-bench) on the setup runner and the test shards — that's what makes the
+# packaged Python venv portable between them.
 env:
   TZ: 'Asia/Kolkata'
   DEBIAN_FRONTEND: noninteractive
@@ -58,12 +58,12 @@ jobs:
   setup:
     name: Build & reinstall (setup)
     # Dedicated scale set (fat cpu request) so the build+reinstall runs at full speed, uncontended
-    # by the many thin test shards. Same arc5 container + /home/ci path + 127.0.0.1 DB as the
-    # shards, so the packaged bench (and its venv) transplants cleanly.
+    # by the many thin test shards. Same CI image + /home/ci path + 127.0.0.1 DB as the shards,
+    # so the packaged bench (and its venv) transplants cleanly.
     runs-on: erpnext-arc-setup
     timeout-minutes: 40
     container:
-      image: ghcr.io/mihir-kandoi/erpnext-ci-mariadb:py3.14-node24-arc5
+      image: ghcr.io/frappe/erpnext-ci-mariadb:py3.14-node24
       credentials:
         username: ${{ secrets.GHCR_USERNAME || github.actor }}
         password: ${{ secrets.GHCR_TOKEN || github.token }}
@@ -140,7 +140,7 @@ jobs:
     runs-on: erpnext-arc
     timeout-minutes: 60
     container:
-      image: ghcr.io/mihir-kandoi/erpnext-ci-mariadb:py3.14-node24-arc5
+      image: ghcr.io/frappe/erpnext-ci-mariadb:py3.14-node24
       credentials:
         username: ${{ secrets.GHCR_USERNAME || github.actor }}
         password: ${{ secrets.GHCR_TOKEN || github.token }}
