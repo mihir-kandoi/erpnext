@@ -14,3 +14,4 @@ capacity-tuned run
 phase1 generate baseline
 fanout debug run
 fanout self-hosted setup
+hydrate v2
