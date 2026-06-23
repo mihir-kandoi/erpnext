@@ -9,3 +9,4 @@ all-self-hosted 4-shard test
 clean-start spread test
 capacity-aware balance test
 capacity-tuned run
+phase1 generate baseline
