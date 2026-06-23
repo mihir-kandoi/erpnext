@@ -33,7 +33,7 @@ if [ "${DB:-mariadb}" = "postgres" ]; then
         initdb -D "$PGDATA" -U postgres --auth-local=trust --auth-host=trust >/dev/null
         echo "host all all 127.0.0.1/32 trust" >> "$PGDATA/pg_hba.conf"
     fi
-    pg_ctl -D "$PGDATA" -w -o "-p 5432 -c listen_addresses=127.0.0.1 -c fsync=off -c synchronous_commit=off -c full_page_writes=off" start
+    pg_ctl -D "$PGDATA" -w -o "-p 5432 -c listen_addresses=127.0.0.1 -c unix_socket_directories=$PGDATA -c fsync=off -c synchronous_commit=off -c full_page_writes=off" start
     echo "PostgreSQL up in-runner (pgdata=$PGDATA)"
     exit 0
 fi
