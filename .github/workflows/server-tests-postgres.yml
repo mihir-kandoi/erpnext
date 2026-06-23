@@ -81,6 +81,7 @@ jobs:
         env:
           DB: postgres
           TYPE: server
+          FRAPPE_BRANCH: develop
 
       - name: Stop DB and stage datadir
         run: |
