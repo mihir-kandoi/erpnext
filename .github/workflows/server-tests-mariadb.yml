@@ -116,7 +116,11 @@ jobs:
       - name: Package bench for test shards
         run: |
           cp "${GITHUB_WORKSPACE}/.github/helper/hydrate.sh" /home/ci/frappe-bench/hydrate.sh
-          tar czpf "${GITHUB_WORKSPACE}/bench.tar.gz" -C /home/ci frappe-bench
+          # Exclude what server tests don't need: the apps' git history and node_modules
+          # (frontend deps; the built assets under sites/assets are already included). This
+          # shrinks the artifact a lot, cutting the per-shard download time.
+          tar czpf "${GITHUB_WORKSPACE}/bench.tar.gz" -C /home/ci \
+            --exclude='.git' --exclude='node_modules' frappe-bench
           ls -lh "${GITHUB_WORKSPACE}/bench.tar.gz"
 
       - name: Upload bench artifact

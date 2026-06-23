@@ -33,7 +33,13 @@ mariadb --host "$db_host" --port 3306 -u root -proot \
     -e "SET GLOBAL character_set_server='utf8mb4'; SET GLOBAL collation_server='utf8mb4_unicode_ci'; SET GLOBAL innodb_flush_log_at_trx_commit=0; SET GLOBAL sync_binlog=0;"
 
 # Restore the site DB from the artifact dump — this is what replaces the per-shard reinstall.
-bench --site test_site --force restore --db-root-username root --db-root-password root "$dump"
+# We load it with the mariadb client directly instead of `bench restore`, because bench restore
+# shells out to the `file` utility (not installed in the runner image) to sniff compression.
+mariadb --host "$db_host" --port 3306 -u root -proot -e \
+    "DROP DATABASE IF EXISTS test_frappe; CREATE DATABASE test_frappe; \
+     CREATE USER IF NOT EXISTS 'test_frappe'@'%' IDENTIFIED BY 'test_frappe'; \
+     GRANT ALL PRIVILEGES ON \`test_frappe\`.* TO 'test_frappe'@'%'; FLUSH PRIVILEGES;"
+gunzip -c "$dump" | mariadb --host "$db_host" --port 3306 -u root -proot test_frappe
 
 # Bring up bench (redis + web; PDF tests need the web server) and wait for redis, as install.sh.
 bench start >> ~/frappe-bench/bench_start.log 2>&1 &
