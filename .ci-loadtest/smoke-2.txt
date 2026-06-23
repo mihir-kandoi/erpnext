@@ -7,3 +7,4 @@ retrigger after image restore
 two-node spread test
 all-self-hosted 4-shard test
 clean-start spread test
+capacity-aware balance test
