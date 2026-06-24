@@ -344,37 +344,7 @@ PY
 }
 wait_for_redis
 
-# Site setup. `bench reinstall` rebuilds the entire schema in Python (~1000 DocTypes) — the
-# CI bottleneck that DB tuning / tmpfs / faster cores couldn't move. Instead, restore a
-# pre-baked baseline (the DB engine loads it, no Python schema-build) and `migrate` to sync
-# only the drift since the baseline was built. The baseline is produced by
-# .github/helper/generate-ci-baseline.sh (run nightly / at image build) from a clean
-# reinstall on develop. Gated by CI_RESTORE_FROM_BACKUP so it A/Bs against plain reinstall;
-# falls back to reinstall if the baseline is missing or the restore fails.
-CI_BASELINE_BACKUP="${CI_BASELINE_BACKUP:-/opt/ci-baseline/test_site-database.sql.gz}"
-if [ "${CI_RESTORE_FROM_BACKUP:-0}" = "1" ] && [ -f "$CI_BASELINE_BACKUP" ]; then
-    if [ "$DB" == "mariadb" ]; then
-        db_root_args=(--db-root-username root --db-root-password root)
-    else
-        db_root_args=(--db-root-username postgres --db-root-password travis)
-    fi
-    if run_ci_step "Restore baseline test site" bench --site test_site --force restore "${db_root_args[@]}" "$CI_BASELINE_BACKUP"; then
-        run_ci_step "Migrate test site" bench --site test_site migrate
-    else
-        run_ci_step "Reinstall test site (baseline restore failed)" bench --site test_site reinstall --yes
-    fi
-else
-    run_ci_step "Reinstall test site" bench --site test_site reinstall --yes
-fi
-
-# Refresh the baseline backup from this freshly set-up site. Run a normal job (reinstall path)
-# with CI_GENERATE_BASELINE=1 and the baseline dir mounted read-write; install.sh captures the
-# DB dump to CI_BASELINE_BACKUP so future runs can restore it. Nightly is enough — bench migrate
-# absorbs intraday develop drift. To bake into the image instead, copy the produced .sql.gz in.
-if [ "${CI_GENERATE_BASELINE:-0}" = "1" ]; then
-    run_ci_step "Backup baseline test site" bench --site test_site backup
-    latest_backup=$(ls -t ~/frappe-bench/sites/test_site/private/backups/*-database.sql.gz | head -1)
-    mkdir -p "$(dirname "$CI_BASELINE_BACKUP")"
-    cp "$latest_backup" "$CI_BASELINE_BACKUP"
-    echo "Baseline written to $CI_BASELINE_BACKUP ($(du -h "$latest_backup" | cut -f1))"
-fi
+# Site setup: build the schema (~1000 DocTypes) into the DB. This is the single-threaded-Python
+# bottleneck, but the fan-out amortises it — it runs once here in the setup job, and the test
+# shards start the DB on the baked datadir instead of repeating the reinstall.
+run_ci_step "Reinstall test site" bench --site test_site reinstall --yes

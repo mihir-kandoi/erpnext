@@ -151,7 +151,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        container: [1, 2, 3, 4, 5, 6, 7, 8]
+        container: [1, 2, 3, 4]
 
     steps:
       - name: Add to Hosts
@@ -178,7 +178,7 @@ jobs:
           coverage_flag=""
           if [ "$WITH_COVERAGE" = "true" ]; then coverage_flag="--with-coverage"; fi
           bench --site test_site run-parallel-tests --lightmode --app erpnext \
-            --total-builds 8 \
+            --total-builds 4 \
             --build-number ${{ matrix.container }} \
             $coverage_flag
           EOF

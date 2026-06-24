@@ -185,7 +185,3 @@ jobs:
             --total-builds 4 --build-number ${{ matrix.container }}
         env:
           TYPE: server
-
-      - name: Show web server log
-        if: ${{ always() }}
-        run: cat ~/frappe-bench/web.log 2>/dev/null || true

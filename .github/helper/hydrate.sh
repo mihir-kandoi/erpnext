@@ -4,21 +4,19 @@
 #
 # The bench (apps, venv, node_modules, sites) is already on disk at ~/frappe-bench — the
 # workflow untar'd it from the artifact the setup job built. So there is NO bench init, no
-# asset build, and no reinstall here: just bring the DB up and restore the dump the setup job
-# baked into the bench, then start bench so tests can run. Mirrors the DB + bench-start tail of
-# install.sh. The whole point is that the expensive work happened ONCE in the setup job.
+# asset build, and no reinstall here: just bring the DB up on the baked datadir and start redis
+# so tests can run. The whole point is that the expensive work happened ONCE in the setup job.
 #
 set -e
 
 ci_user="${ERPNEXT_CI_USER:-frappe}"
 db_host="${DB_HOST:-127.0.0.1}"
-dump="${CI_BASELINE_BACKUP:-/home/$ci_user/frappe-bench/test_site-db.sql.gz}"
 
 # Re-exec as the ci user (uid 1001) so bench/cache ownership matches the artifact, same as
 # install.sh. The workflow untar'd as root with -p, so the files are already owned by ci.
 if [ "$(id -u)" = "0" ] && [ "${SKIP_SYSTEM_SETUP:-0}" = "1" ] && [ "$ci_user" != "root" ]; then
     exec su -m "$ci_user" -s /bin/bash -c \
-        "ERPNEXT_CI_USER='$ci_user' DB_HOST='$db_host' CI_BASELINE_BACKUP='$dump' bash '$0'"
+        "ERPNEXT_CI_USER='$ci_user' DB_HOST='$db_host' bash '$0'"
 fi
 
 cd ~/frappe-bench
