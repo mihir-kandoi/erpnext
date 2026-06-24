@@ -89,9 +89,6 @@ jobs:
           DB: postgres
           CI_DB_DATADIR: /home/runner/pgdata
 
-      # CI_PREBUILD_MASTERS=1 makes install.sh build erpnext's shared test masters (_Test Company,
-      # presets, …) into the site right after reinstall, while its redis is still up. They bake into
-      # the datadir so the 4 shards skip rebuilding the shared set (BootStrapTestData is idempotent).
       - name: Install
         run: bash ${GITHUB_WORKSPACE}/.github/helper/install.sh
         env:
@@ -99,7 +96,6 @@ jobs:
           TYPE: server
           FRAPPE_BRANCH: develop
           BENCH_CACHE_DIR: /home/runner/bench-cache
-          CI_PREBUILD_MASTERS: "1"
 
       - name: Stop DB and stage datadir
         run: |
