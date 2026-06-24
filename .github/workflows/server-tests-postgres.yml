@@ -1,6 +1,9 @@
 name: Server (Postgres)
 
 on:
+  schedule:
+    # 03:00 AM IST daily (21:30 UTC the previous day)
+    - cron: "30 21 * * *"
   pull_request:
     paths-ignore:
       - '**.js'
@@ -31,6 +34,9 @@ jobs:
   setup:
     name: Build & reinstall (setup)
     runs-on: ubuntu-latest
+    # Runs on the daily schedule (and workflow_dispatch). On PRs it runs ONLY when the PR carries
+    # the 'postgres' label — the test job needs setup, so it's skipped too when this is.
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'postgres')
     timeout-minutes: 40
     steps:
       - name: Clone
