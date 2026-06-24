@@ -367,6 +367,17 @@ else
     run_ci_step "Reinstall test site" bench --site test_site reinstall --yes
 fi
 
+# Optionally pre-build erpnext's shared test masters (Company, presets, price lists, …) into the
+# freshly set-up site so a baked datadir ships with them and parallel test shards skip rebuilding
+# the shared set. redis is already up here (the bench start above) — unlike a separate CI step,
+# which is why this lives in install.sh. Idempotent + non-fatal: shards build them if it's skipped.
+if [ "${CI_PREBUILD_MASTERS:-0}" = "1" ]; then
+    echo "::group::Pre-build shared test masters"
+    bench --site test_site execute erpnext.tests.utils.BootStrapTestData \
+        || echo "master pre-build failed; shards will build them"
+    echo "::endgroup::"
+fi
+
 # Refresh the baseline backup from this freshly set-up site. Run a normal job (reinstall path)
 # with CI_GENERATE_BASELINE=1 and the baseline dir mounted read-write; install.sh captures the
 # DB dump to CI_BASELINE_BACKUP so future runs can restore it. Nightly is enough — bench migrate

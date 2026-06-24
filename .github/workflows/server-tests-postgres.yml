@@ -89,6 +89,9 @@ jobs:
           DB: postgres
           CI_DB_DATADIR: /home/runner/pgdata
 
+      # CI_PREBUILD_MASTERS=1 makes install.sh build erpnext's shared test masters (_Test Company,
+      # presets, …) into the site right after reinstall, while its redis is still up. They bake into
+      # the datadir so the 4 shards skip rebuilding the shared set (BootStrapTestData is idempotent).
       - name: Install
         run: bash ${GITHUB_WORKSPACE}/.github/helper/install.sh
         env:
@@ -96,22 +99,7 @@ jobs:
           TYPE: server
           FRAPPE_BRANCH: develop
           BENCH_CACHE_DIR: /home/runner/bench-cache
-
-      # Build erpnext's shared test masters (_Test Company, presets, price lists, …) ONCE here so
-      # they bake into the datadir. BootStrapTestData (instantiated on import of erpnext.tests.utils)
-      # is idempotent and commits, so each of the 4 shards then finds them present and skips the
-      # inserts — the expensive shared bootstrap runs once instead of four times. install.sh's
-      # bench start is reaped when the Install step ends, so re-start redis for the bench command.
-      - name: Pre-build shared test masters
-        run: |
-          cd ~/frappe-bench
-          for conf in redis_cache redis_queue; do
-            [ -f config/$conf.conf ] && redis-server config/$conf.conf --daemonize yes
-          done
-          bench --site test_site execute erpnext.tests.utils.BootStrapTestData \
-            || echo "master pre-build skipped — shards will build them"
-        env:
-          DB: postgres
+          CI_PREBUILD_MASTERS: "1"
 
       - name: Stop DB and stage datadir
         run: |
