@@ -34,9 +34,12 @@ bash ~/frappe-bench/start-db.sh
 # suite never uses, so the wait below burned its full timeout (~4m). There, start the two redis
 # instances directly: fast and deterministic.
 if [ "${DB:-mariadb}" = "postgres" ]; then
-    for conf in redis_cache redis_queue; do
-        [ -f ~/frappe-bench/config/$conf.conf ] && redis-server ~/frappe-bench/config/$conf.conf --daemonize yes
-    done
+    # Bare GitHub shard: each workflow step is a fresh process tree, so a backgrounded `bench start`
+    # (honcho) is reaped before Run Tests — that's why redis vanished between steps earlier. setsid
+    # detaches it into its own session (a real daemon that survives), bringing up web + workers +
+    # redis. The web server is required for print-format / PDF tests: wkhtmltopdf fetches their
+    # CSS/JS assets over HTTP from it.
+    setsid bash -c 'cd ~/frappe-bench && exec bench start >> ~/frappe-bench/bench_start.log 2>&1' < /dev/null &
 else
     bench start >> ~/frappe-bench/bench_start.log 2>&1 &
 fi
