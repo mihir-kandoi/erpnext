@@ -56,10 +56,14 @@ mariadbd --no-defaults --datadir="$DATADIR" --socket="$SOCK" --pid-file="$DATADI
     --innodb-flush-log-at-trx-commit=0 --sync-binlog=0 --skip-log-bin \
     > "$HOME/mariadb.log" 2>&1 &
 
+up=0
 for _ in $(seq 1 60); do
-    mariadb-admin --socket="$SOCK" ping --silent 2>/dev/null && break
+    if mariadb-admin --socket="$SOCK" ping --silent 2>/dev/null; then up=1; break; fi
     sleep 1
 done
+# Fail loudly instead of letting the loop fall through (exit 0 of the last `sleep`) into SQL that
+# would error with a vague socket-connection failure.
+[ "$up" = "1" ] || { echo "mariadbd did not come up on $SOCK"; cat "$HOME/mariadb.log" 2>/dev/null; exit 1; }
 
 if [ "$fresh" = "1" ]; then
     # A fresh datadir has only a password-less root@localhost. Give it the password install.sh

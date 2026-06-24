@@ -112,6 +112,9 @@ jobs:
         run: |
           mariadb-admin -h 127.0.0.1 -P 3306 -u root -proot shutdown || true
           for _ in $(seq 1 30); do [ -f /home/ci/db-data/mysqld.pid ] || break; sleep 1; done
+          # Don't bake a dirty datadir — fail if mariadbd didn't finish stopping, rather than ship
+          # an inconsistent datadir the shards would have to crash-recover.
+          [ -f /home/ci/db-data/mysqld.pid ] && { echo "mariadbd did not shut down cleanly"; exit 1; }
           mv /home/ci/db-data /home/ci/frappe-bench/mariadb-data
 
       # Package the whole bench (apps, venv, node_modules, sites, the DB dump, and hydrate.sh)
@@ -164,12 +167,11 @@ jobs:
           tar xzpf "/opt/ci-bench-staging/${GITHUB_RUN_ID}.tar.gz" -C /home/ci
           ls -ld /home/ci/frappe-bench
 
-      - name: Hydrate (DB up + restore + bench start)
+      - name: Hydrate (start DB on baked datadir + bench start)
         run: bash /home/ci/frappe-bench/hydrate.sh
         env:
           DB_HOST: 127.0.0.1
           SKIP_SYSTEM_SETUP: "1"
-          CI_BASELINE_BACKUP: /home/ci/frappe-bench/test_site-db.sql.gz
 
       - name: Run Tests
         run: |
@@ -178,7 +180,7 @@ jobs:
           coverage_flag=""
           if [ "$WITH_COVERAGE" = "true" ]; then coverage_flag="--with-coverage"; fi
           bench --site test_site run-parallel-tests --lightmode --app erpnext \
-            --total-builds 4 \
+            --total-builds ${{ strategy.job-total }} \
             --build-number ${{ matrix.container }} \
             $coverage_flag
           EOF

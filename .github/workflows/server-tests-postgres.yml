@@ -5,6 +5,8 @@ on:
     # 03:00 AM IST daily (21:30 UTC the previous day)
     - cron: "30 21 * * *"
   pull_request:
+    # 'labeled' so adding the 'postgres' label to an already-open PR re-triggers the run.
+    types: [opened, reopened, synchronize, labeled]
     paths-ignore:
       - '**.js'
       - '**.md'
@@ -182,6 +184,6 @@ jobs:
           ( cd ~/frappe-bench/sites && nohup python3 -m http.server 8000 --bind 127.0.0.1 > ~/frappe-bench/web.log 2>&1 & )
           for _ in $(seq 1 15); do (exec 3<>/dev/tcp/127.0.0.1/8000) 2>/dev/null && { exec 3>&- 3<&-; break; }; sleep 1; done
           bench --site test_site run-parallel-tests --lightmode --app erpnext \
-            --total-builds 4 --build-number ${{ matrix.container }}
+            --total-builds ${{ strategy.job-total }} --build-number ${{ matrix.container }}
         env:
           TYPE: server
