@@ -63,7 +63,7 @@ jobs:
     runs-on: erpnext-arc-setup
     timeout-minutes: 40
     container:
-      image: ghcr.io/mihir-kandoi/erpnext-ci-mariadb:py3.14-node24-arc5
+      image: ghcr.io/frappe/erpnext-ci-mariadb:py3.14-node24
       credentials:
         username: ${{ secrets.GHCR_USERNAME || github.actor }}
         password: ${{ secrets.GHCR_TOKEN || github.token }}
@@ -140,7 +140,7 @@ jobs:
     runs-on: erpnext-arc
     timeout-minutes: 60
     container:
-      image: ghcr.io/mihir-kandoi/erpnext-ci-mariadb:py3.14-node24-arc5
+      image: ghcr.io/frappe/erpnext-ci-mariadb:py3.14-node24
       credentials:
         username: ${{ secrets.GHCR_USERNAME || github.actor }}
         password: ${{ secrets.GHCR_TOKEN || github.token }}
