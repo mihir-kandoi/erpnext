@@ -34,12 +34,16 @@ bash ~/frappe-bench/start-db.sh
 # suite never uses, so the wait below burned its full timeout (~4m). There, start the two redis
 # instances directly: fast and deterministic.
 if [ "${DB:-mariadb}" = "postgres" ]; then
-    # Bare GitHub shard: each workflow step is a fresh process tree, so a backgrounded `bench start`
-    # (honcho) is reaped before Run Tests — that's why redis vanished between steps earlier. setsid
-    # detaches it into its own session (a real daemon that survives), bringing up web + workers +
-    # redis. The web server is required for print-format / PDF tests: wkhtmltopdf fetches their
-    # CSS/JS assets over HTTP from it.
-    setsid bash -c 'cd ~/frappe-bench && exec bench start >> ~/frappe-bench/bench_start.log 2>&1' < /dev/null &
+    # Start redis directly as daemons — reliable and persists across steps. Do NOT route it through
+    # `bench start`: honcho tears the whole process group down if any one Procfile proc dies on the
+    # bare shard, which took redis with it (redis @ 13000 refused in Run Tests). Keeping redis
+    # independent is what makes it survive.
+    for conf in redis_cache redis_queue; do
+        [ -f ~/frappe-bench/config/$conf.conf ] && redis-server ~/frappe-bench/config/$conf.conf --daemonize yes
+    done
+    # Web server for print-format / PDF tests (wkhtmltopdf fetches their assets over HTTP), started
+    # as its OWN detached process so it can never take redis down with it.
+    setsid bash -c 'cd ~/frappe-bench && exec bench serve --port 8000 >> ~/frappe-bench/web.log 2>&1' < /dev/null &
 else
     bench start >> ~/frappe-bench/bench_start.log 2>&1 &
 fi
