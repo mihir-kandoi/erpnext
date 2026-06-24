@@ -23,14 +23,25 @@ fi
 
 cd ~/frappe-bench
 
-# Start MariaDB in-container on the datadir baked into the artifact. The DB is already populated
-# (the setup job reinstalled into this very datadir), so there is NO restore — the server just
-# comes up on the existing files. This is what replaces the per-shard SQL replay.
+# Start the DB on the datadir baked into the artifact. It's already populated (the setup job
+# reinstalled into this very datadir), so there is NO restore — the server comes up on the
+# existing files. This is what replaces the per-shard SQL replay.
 bash ~/frappe-bench/start-db.sh
 
-# Bring up bench (redis + web; PDF tests need the web server) and wait for redis, as install.sh.
-bench start >> ~/frappe-bench/bench_start.log 2>&1 &
+# Bring up redis (lightmode unit tests need cache + queue). In the self-hosted container we use the
+# full `bench start` (web/workers too, like install.sh). On the bare GitHub Postgres shard
+# `bench start` (honcho) lagged — it blocks the redis procs behind web/worker procs the lightmode
+# suite never uses, so the wait below burned its full timeout (~4m). There, start the two redis
+# instances directly: fast and deterministic.
+if [ "${DB:-mariadb}" = "postgres" ]; then
+    for conf in redis_cache redis_queue; do
+        [ -f ~/frappe-bench/config/$conf.conf ] && redis-server ~/frappe-bench/config/$conf.conf --daemonize yes
+    done
+else
+    bench start >> ~/frappe-bench/bench_start.log 2>&1 &
+fi
 
+# Wait for redis, failing fast instead of silently burning minutes if it never comes up.
 cfg=~/frappe-bench/sites/common_site_config.json
 if [ -f "$cfg" ]; then
     ports=$(python - "$cfg" <<'PY'
@@ -46,11 +57,13 @@ for key in ("redis_cache", "redis_queue"):
 PY
 )
     for port in $ports; do
-        for _ in $(seq 1 120); do
-            if (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then exec 3>&- 3<&-; break; fi
+        up=0
+        for _ in $(seq 1 60); do
+            if (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then exec 3>&- 3<&-; up=1; break; fi
             sleep 1
         done
+        [ "$up" = "1" ] || { echo "redis did not come up on port $port"; exit 1; }
     done
 fi
 
-echo "Hydrated: bench untar'd, DB restored, bench started — ready for tests."
+echo "Hydrated: DB up on baked datadir, redis up — ready for tests."
