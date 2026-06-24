@@ -333,13 +333,17 @@ for key in ("redis_cache", "redis_queue"):
 PY
 )
     for port in $ports; do
+        local up=0
         for _ in $(seq 1 120); do
             if (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then
-                exec 3>&- 3<&-
+                exec 3>&- 3<&-; up=1
                 break
             fi
             sleep 1
         done
+        # Fail clearly instead of letting reinstall die later on a vague socket-connection error
+        # when redis never bound.
+        [ "$up" = "1" ] || { echo "redis did not come up on port $port"; return 1; }
     done
 }
 wait_for_redis
