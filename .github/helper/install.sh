@@ -202,10 +202,14 @@ save_warm_bench() {
     tmp_archive="${bench_cache_archive}.${$}.tmp"
 
     echo "Saving warm bench to ${bench_cache_archive}"
+    # Keep sites/common_site_config.json (the redis ports live there — dropping it makes the
+    # restore path fall back to a default redis port that bench start never bound, so reinstall
+    # fails with "redis ... connection refused"). Only the rebuildable sites/assets is excluded;
+    # restore_warm_bench runs `bench build` to regenerate it.
     tar \
         --use-compress-program="zstd -T0 -3" \
         --exclude="frappe-bench/logs" \
-        --exclude="frappe-bench/sites" \
+        --exclude="frappe-bench/sites/assets" \
         -cf "$tmp_archive" \
         -C ~ frappe-bench
     mv "$tmp_archive" "$bench_cache_archive"
