@@ -367,6 +367,24 @@ else
     run_ci_step "Reinstall test site" bench --site test_site reinstall --yes
 fi
 
+# Optionally pre-build erpnext's shared test masters (Company, presets, price lists, …) into the
+# freshly set-up site so a baked datadir ships with them and parallel test shards skip rebuilding
+# the shared set. redis is already up here (the bench start above) — unlike a separate CI step,
+# which is why this lives in install.sh. Idempotent + non-fatal: shards build them if it's skipped.
+if [ "${CI_PREBUILD_MASTERS:-0}" = "1" ]; then
+    echo "::group::Pre-build shared test masters"
+    # `bench execute` can't resolve an erpnext path (it eval()s the name with only frappe in scope,
+    # hence "NameError: name 'erpnext' is not defined"). Use the console instead: importing
+    # erpnext.tests.utils runs its module-level BootStrapTestData() (tests/utils.py), which builds
+    # the shared masters. in_test makes the inserts behave as they do under the test runner.
+    bench --site test_site console <<'PY' || echo "master pre-build failed; shards will build them"
+frappe.flags.in_test = True
+import erpnext.tests.utils  # noqa: import triggers module-level BootStrapTestData()
+frappe.db.commit()
+PY
+    echo "::endgroup::"
+fi
+
 # Refresh the baseline backup from this freshly set-up site. Run a normal job (reinstall path)
 # with CI_GENERATE_BASELINE=1 and the baseline dir mounted read-write; install.sh captures the
 # DB dump to CI_BASELINE_BACKUP so future runs can restore it. Nightly is enough — bench migrate
