@@ -146,10 +146,15 @@ jobs:
       # The bench CLI (frappe-bench) and redis are global/system tools — not in the bench tarball.
       # The setup runner got them via install.sh; the MariaDB shards get them from the arc5 image.
       # GitHub-hosted PG shards install them here (cheap vs the build+reinstall that setup did once).
-      - name: Install bench CLI + redis (shard runtime)
+      - name: Install shard runtime (bench CLI + redis + wkhtmltopdf)
         run: |
           pip install frappe-bench
           command -v redis-server >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq redis-server; }
+          # wkhtmltopdf (patched-qt build) for print-format / PDF tests — same .deb install.sh uses.
+          if ! command -v wkhtmltopdf >/dev/null; then
+            wget -qO /tmp/wkhtmltox.deb https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.jammy_amd64.deb
+            sudo apt-get install -y -qq /tmp/wkhtmltox.deb
+          fi
 
       - name: Untar bench
         run: |
