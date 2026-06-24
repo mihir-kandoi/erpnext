@@ -65,14 +65,15 @@ jobs:
       - name: Add to Hosts
         run: echo "127.0.0.1 test_site" | sudo tee -a /etc/hosts
 
-      # The v14 baseline backup is a fixed published file — cache it instead of re-downloading
-      # ~100MB from frappe.io every run.
+      # The v14 baseline backup is a fixed, published snapshot — cache it instead of re-downloading
+      # ~100MB from frappe.io every run. The key is intentionally static (the file is immutable);
+      # bump the -v1 suffix if frappe ever republishes a different v14 dump at the same URL.
       - name: Cache erpnext v14 backup
         id: cache-v14
         uses: actions/cache@v4
         with:
           path: ~/erpnext-v14.sql.gz
-          key: erpnext-v14-sql-gz
+          key: erpnext-v14-sql-gz-v1
 
       - name: Download erpnext v14 backup
         if: steps.cache-v14.outputs.cache-hit != 'true'
