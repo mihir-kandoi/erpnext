@@ -37,13 +37,11 @@ if [ "${DB:-mariadb}" = "postgres" ]; then
     # Start redis directly as daemons — reliable and persists across steps. Do NOT route it through
     # `bench start`: honcho tears the whole process group down if any one Procfile proc dies on the
     # bare shard, which took redis with it (redis @ 13000 refused in Run Tests). Keeping redis
-    # independent is what makes it survive.
+    # independent is what makes it survive. The web server (for PDF tests) is NOT started here — a
+    # backgrounded server doesn't survive into the next step; it's started inside the Run Tests step.
     for conf in redis_cache redis_queue; do
         [ -f ~/frappe-bench/config/$conf.conf ] && redis-server ~/frappe-bench/config/$conf.conf --daemonize yes
     done
-    # Web server for print-format / PDF tests (wkhtmltopdf fetches their assets over HTTP), started
-    # as its OWN detached process so it can never take redis down with it.
-    setsid bash -c 'cd ~/frappe-bench && exec bench serve --port 8000 >> ~/frappe-bench/web.log 2>&1' < /dev/null &
 else
     bench start >> ~/frappe-bench/bench_start.log 2>&1 &
 fi
