@@ -135,7 +135,7 @@ jobs:
   # Fan-out: each shard downloads the bench, untars it, restores the DB dump, and runs its
   # slice of the suite. No clone, no build, no reinstall on the self-hosted boxes.
   test:
-    name: Python Unit Tests (ARC)
+    name: Python Unit Tests
     needs: setup
     runs-on: erpnext-arc
     timeout-minutes: 60
