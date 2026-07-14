@@ -168,11 +168,12 @@ restore_warm_bench() {
         # Phase 1 already fetched ~/frappe to the exact live develop SHA. Fetch that commit
         # straight from it (bench init names the remote 'upstream', not 'origin', and points
         # it at this local clone — so a plain `git fetch origin` does not work).
-        git fetch --no-tags "$HOME/frappe" HEAD || exit 1
+        # Both repos are shallow: --update-shallow is required to accept the new shallow root,
+        # and gc.auto=0 stops fetch spawning detached maintenance that races the caller's rm -rf.
+        git -c gc.auto=0 fetch --no-tags --update-shallow "$HOME/frappe" HEAD || exit 1
         git checkout --force FETCH_HEAD || exit 1
     ); then
         echo "Fast-forward to ${frappe_sha} failed; falling back to full init"
-        rm -rf ~/frappe-bench
         return 1
     fi
 
@@ -180,11 +181,10 @@ restore_warm_bench() {
     # so a develop commit that bumped requirements doesn't leave a stale venv.
     if ! ~/frappe-bench/env/bin/python -m pip install -q -e ~/frappe-bench/apps/frappe; then
         echo "frappe dependency refresh failed; falling back to full init"
-        rm -rf ~/frappe-bench
         return 1
     fi
 
-    ( cd ~/frappe-bench && CI=Yes bench build --app frappe ) || { rm -rf ~/frappe-bench; return 1; }
+    ( cd ~/frappe-bench && CI=Yes bench build --app frappe ) || return 1
     return 0
 }
 
@@ -234,6 +234,10 @@ else
 fi
 
 if ! restore_warm_bench; then
+    # Every restore failure path (partial tar extract, failed fast-forward, failed build)
+    # can leave a broken ~/frappe-bench behind; clean it here so bench init never sees it.
+    rm -rf ~/frappe-bench
+
     bench init --skip-assets --frappe-path ~/frappe --python "$(which python)" frappe-bench
 
     cd ~/frappe-bench || exit
