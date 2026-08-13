@@ -378,6 +378,7 @@ class MaterialTransferForManufactureStockEntry(BaseMaterialTransferStockEntry):
 
 		if self.doc.work_order:
 			self._validate_work_order()
+			self._lock_work_order()
 
 			if self.doc.fg_completed_qty:
 				if self.doc.docstatus == 1:
@@ -391,6 +392,12 @@ class MaterialTransferForManufactureStockEntry(BaseMaterialTransferStockEntry):
 			self.wo_doc.run_method("update_status")
 			if not self.wo_doc.operations:
 				self.wo_doc.set_actual_dates()
+
+	def _lock_work_order(self):
+		"""Serialize concurrent submits and cancels against one work order so the allowance
+		guard and the coverage recomputation run on fresh, committed state."""
+		frappe.db.get_value("Work Order", self.doc.work_order, "name", for_update=True)
+		self.wo_doc.reload()
 
 	def _validate_transfer_within_allowance(self):
 		"""Reject a transfer whose For Quantity, on top of the effective qty already
