@@ -1698,6 +1698,7 @@ class TestStockEntry(ERPNextTestSuite):
 		entry.set_stock_entry_type()
 		entry.set_posting_time = 1
 		entry.posting_date = add_days(today(), -5)
+		entry.posting_time = "10:00:00"
 		entry.fg_completed_qty = 1
 		entry.append("items", stock_entry_row(rm_item, 10, s_warehouse="_Test Warehouse - _TC"))
 		entry.append(
@@ -1724,6 +1725,15 @@ class TestStockEntry(ERPNextTestSuite):
 			posting_date=add_days(today(), -1),
 		)
 
+		make_stock_entry(
+			item_code=scrap_item,
+			target="_Test Warehouse 1 - _TC",
+			qty=10,
+			basic_rate=9000,
+			posting_date=add_days(today(), -5),
+			posting_time="10:00:00",
+		)
+
 		backdated_receipt = make_stock_entry(
 			item_code=rm_item,
 			target="_Test Warehouse - _TC",
@@ -1738,7 +1748,6 @@ class TestStockEntry(ERPNextTestSuite):
 
 		entry.load_from_db()
 
-		# the scrap rate stays at its posting date valuation, not the one raised a day ago
 		self.assertEqual(entry.items[2].basic_rate, 50)
 		self.assertEqual(entry.items[1].basic_rate, 1400)
 
