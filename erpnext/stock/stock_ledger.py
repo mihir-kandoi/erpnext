@@ -2167,6 +2167,7 @@ def get_valuation_rate(
 	raise_error_if_no_rate=True,
 	batch_no=None,
 	serial_and_batch_bundle=None,
+	posting_datetime=None,
 ):
 	from erpnext.stock.serial_batch_bundle import BatchNoValuation
 
@@ -2188,6 +2189,9 @@ def get_valuation_rate(
 		if voucher_no:
 			# Comparing against a None voucher_no yields NULL, which filters out every row
 			query = query.where((table.voucher_no != voucher_no) | (table.voucher_type != voucher_type))
+
+		if posting_datetime:
+			query = query.where(table.posting_datetime <= posting_datetime)
 
 		last_valuation_rate = query.run()
 		if last_valuation_rate and last_valuation_rate[0][0] is not None:
@@ -2235,6 +2239,9 @@ def get_valuation_rate(
 		last_sle_query = last_sle_query.where(
 			~((sle_entry.voucher_no == voucher_no) & (sle_entry.voucher_type == voucher_type))
 		)
+
+	if posting_datetime:
+		last_sle_query = last_sle_query.where(sle_entry.posting_datetime <= posting_datetime)
 
 	if last_valuation_rate := last_sle_query.run():
 		return flt(last_valuation_rate[0][0])
