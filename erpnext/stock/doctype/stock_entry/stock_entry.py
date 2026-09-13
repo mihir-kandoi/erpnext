@@ -1571,7 +1571,21 @@ class StockEntry(StockController, SubcontractingInwardController):
 			raise_error_if_no_rate=raise_error_if_no_rate,
 			batch_no=d.batch_no,
 			serial_and_batch_bundle=d.serial_and_batch_bundle,
+			posting_datetime=get_combine_datetime(self.posting_date, self.posting_time),
+			creation=self.first_sle_creation,
 		)
+
+	@property
+	def first_sle_creation(self):
+		"""Creation of this entry's earliest ledger entry, if it has posted any yet."""
+		if "first_sle_creation" not in self.flags:
+			self.flags.first_sle_creation = frappe.db.get_value(
+				"Stock Ledger Entry",
+				{"voucher_no": self.name, "voucher_type": self.doctype, "is_cancelled": 0},
+				"creation",
+				order_by="creation asc",
+			)
+		return self.flags.first_sle_creation
 
 	def has_consumption_basis(self) -> bool:
 		"""Whether the cost of the consumed items is known, even when that cost is zero."""
