@@ -1,8 +1,6 @@
 # Copyright (c) 2026, Frappe Technologies Pvt. Ltd. and Contributors
 # See license.txt
 
-from unittest.mock import patch
-
 import frappe
 from frappe.utils import add_days, flt, today
 
@@ -40,12 +38,10 @@ class TestConsolidatedFinancialStatement(ERPNextTestSuite):
 		filters.update(extra)
 		return execute(filters)[1]
 
-	def post_journal_entry(
-		self, debit_account, credit_account, amount, posting_date=None, company=CHILD_COMPANY
-	):
+	def post_journal_entry(self, debit_account, credit_account, amount, posting_date=None):
 		je = frappe.new_doc("Journal Entry")
 		je.posting_date = posting_date or today()
-		je.company = company
+		je.company = CHILD_COMPANY
 		je.set(
 			"accounts",
 			[
@@ -167,70 +163,3 @@ class TestConsolidatedFinancialStatement(ERPNextTestSuite):
 		data = self.run_report(report="Balance Sheet", accumulated_in_group_company=1)
 		row = self.get_row(data, "Unclosed Fiscal Years")
 		self.assertEqual(flt(row["total"]), flt(row[PARENT_COMPANY]))
-
-	def test_accumulated_cash_flow_section_total_is_under_the_group_company(self):
-		self.post_journal_entry("Cash - CCI", "Sales - CCI", 5000)
-
-		data = self.run_report(report="Cash Flow", accumulated_in_group_company=1)
-
-		operations_header = data[0]["account"]
-		section_rows = [row for row in data if row.get("parent_account") == operations_header]
-		section_total = self.get_row(data, "Net Cash from Operations")
-		self.assertEqual(
-			flt(section_total.get(PARENT_COMPANY)), sum(flt(row.get(PARENT_COMPANY)) for row in section_rows)
-		)
-
-	def test_accumulated_cash_flow_rows_include_subsidiaries(self):
-		self.post_journal_entry("Office Equipment - CCI", "Cash - CCI", 3000)
-
-		own_row = self.get_row(
-			self.run_report(report="Cash Flow", accumulated_in_group_company=0), "Net Change in Fixed Asset"
-		)
-		accumulated_row = self.get_row(
-			self.run_report(report="Cash Flow", accumulated_in_group_company=1), "Net Change in Fixed Asset"
-		)
-		self.assertEqual(flt(own_row[CHILD_COMPANY]), -3000)
-		self.assertEqual(
-			flt(accumulated_row[PARENT_COMPANY]), flt(own_row[PARENT_COMPANY]) + flt(own_row[CHILD_COMPANY])
-		)
-
-	def test_accumulated_cash_flow_row_total_is_the_group_company_value(self):
-		frappe.get_doc(
-			doctype="Currency Exchange",
-			date=get_fiscal_year(today(), company=PARENT_COMPANY)[1],
-			from_currency="USD",
-			to_currency="INR",
-			exchange_rate=80,
-			for_buying=1,
-			for_selling=1,
-		).insert()
-		self.post_journal_entry("Office Equipment - CCU", "Cash - CCU", 100, company="Child Company US")
-
-		with patch("erpnext.accounts.report.utils.get_rate_as_at", return_value=0.0125):
-			data = self.run_report(report="Cash Flow", accumulated_in_group_company=1)
-
-		row = self.get_row(data, "Net Change in Fixed Asset")
-		self.assertEqual(flt(row["total"]), flt(row[PARENT_COMPANY]))
-
-	def test_accumulated_column_uses_its_own_company_currency(self):
-		intermediate_company = "_Test Company 7"
-		child_company = frappe.get_doc("Company", "Best Test")
-		child_company.parent_company = intermediate_company
-		child_company.save()
-		self.post_journal_entry("Cash - BT", "Sales - BT", 8000, company=child_company.name)
-
-		filters = {"company": "_Test Company 6", "report": "Profit and Loss Statement"}
-		with patch(
-			"erpnext.accounts.report.utils.get_rate_as_at",
-			side_effect=lambda date, from_, to: {("USD", "INR"): 80, ("INR", "USD"): 0.0125}.get((from_, to)),
-		):
-			own_data = self.run_report(**filters, accumulated_in_group_company=0)
-			accumulated_data = self.run_report(**filters, accumulated_in_group_company=1)
-
-		own_row = self.get_row(own_data, "Profit for the year")
-		accumulated_row = self.get_row(accumulated_data, "Profit for the year")
-		self.assertAlmostEqual(
-			flt(accumulated_row[intermediate_company]),
-			flt(own_row.get(intermediate_company)) + flt(own_row[child_company.name]) * 0.0125,
-			places=2,
-		)

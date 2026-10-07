@@ -283,7 +283,8 @@ def get_account_type_based_data(account_type, companies, fiscal_year, filters):
 	filters.end_date = fiscal_year.year_end_date
 
 	for company in companies:
-		amount = get_account_type_based_gl_data(company, frappe._dict(filters, company=company))
+		filters.company = company
+		amount = get_account_type_based_gl_data(company, filters)
 
 		if amount and account_type == "Depreciation":
 			amount *= -1
@@ -292,35 +293,7 @@ def get_account_type_based_data(account_type, companies, fiscal_year, filters):
 		data.setdefault(company, amount)
 
 	data["total"] = total
-
-	if filters.get("accumulated_in_group_company"):
-		own_amounts = data.copy()
-		for company in companies:
-			data[company] = get_accumulated_amount(company, companies[company], own_amounts, filters)
-
-	set_group_company_total(data, filters)
 	return data
-
-
-def get_accumulated_amount(company, subsidiaries, own_amounts, filters):
-	"""The company's amount plus its subsidiaries', converted to the company's currency."""
-	company_currency = erpnext.get_company_currency(company)
-
-	accumulated_amount = 0
-	for subsidiary in subsidiaries:
-		amount = own_amounts[subsidiary]
-		subsidiary_currency = erpnext.get_company_currency(subsidiary)
-		if (
-			amount
-			and subsidiary != company
-			and not filters.get("presentation_currency")
-			and subsidiary_currency != company_currency
-		):
-			amount = convert(amount, company_currency, subsidiary_currency, filters.end_date)
-
-		accumulated_amount += amount
-
-	return accumulated_amount
 
 
 def get_company_columns(companies, filters):
@@ -450,7 +423,7 @@ def calculate_values(accounts_by_name, gl_entries_by_account, companies, filters
 						or (filters.get("accumulated_in_group_company"))
 						and entry.company in companies.get(company)
 					):
-						parent_company_currency = erpnext.get_company_currency(company)
+						parent_company_currency = erpnext.get_company_currency(d.company)
 						child_company_currency = erpnext.get_company_currency(entry.company)
 
 						debit, credit = flt(entry.debit), flt(entry.credit)
