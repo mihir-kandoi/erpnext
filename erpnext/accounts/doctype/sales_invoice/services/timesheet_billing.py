@@ -147,6 +147,9 @@ class TimesheetBillingService:
 			"timesheet_detail": time_log.name,
 			"activity_type": time_log.activity_type,
 			"description": time_log.description,
+			"from_time": time_log.from_time,
+			"to_time": time_log.to_time,
+			"project_name": time_log.project_name,
 		}
 
 	def get_billing_amount(self, time_log) -> float:
