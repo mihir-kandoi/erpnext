@@ -7,14 +7,7 @@ import frappe
 from frappe import _, bold
 from frappe.utils import cint, flt
 
-COUNTERPART_REFERENCE = {
-	"Sales Invoice": ("inter_company_invoice_reference", "Purchase Invoice"),
-	"Purchase Invoice": ("inter_company_invoice_reference", "Sales Invoice"),
-	"Sales Order": ("inter_company_order_reference", "Purchase Order"),
-	"Purchase Order": ("inter_company_order_reference", "Sales Order"),
-	"Delivery Note": ("inter_company_reference", "Purchase Receipt"),
-	"Purchase Receipt": ("inter_company_reference", "Delivery Note"),
-}
+from erpnext.accounts.doctype.sales_invoice.services.inter_company import get_inter_company_counterpart
 
 
 class InternalTransferService:
@@ -112,10 +105,7 @@ class InternalTransferService:
 				)
 
 	def validate_currency(self) -> None:
-		if self.doc.doctype not in COUNTERPART_REFERENCE:
-			return
-
-		reference_field, counterpart_doctype = COUNTERPART_REFERENCE[self.doc.doctype]
+		counterpart_doctype, reference_field = get_inter_company_counterpart(self.doc.doctype)
 		counterpart = self.doc.get(reference_field)
 		if not counterpart:
 			return

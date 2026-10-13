@@ -69,6 +69,10 @@ def get_inter_company_counterpart(doctype: str) -> tuple[str, str]:
 		ref_doc = "Purchase Invoice" if doctype == "Sales Invoice" else "Sales Invoice"
 		return ref_doc, "inter_company_invoice_reference"
 
+	if doctype in ["Delivery Note", "Purchase Receipt"]:
+		ref_doc = "Purchase Receipt" if doctype == "Delivery Note" else "Delivery Note"
+		return ref_doc, "inter_company_reference"
+
 	ref_doc = "Purchase Order" if doctype == "Sales Order" else "Sales Order"
 	return ref_doc, "inter_company_order_reference"
 
