@@ -663,7 +663,7 @@ class GrossProfitGenerator:
 		if not returned_item_rows:
 			return
 
-		billed_qty = row.qty
+		invoiced_qty = row.qty
 		for returned_item_row in returned_item_rows:
 			# returned_items 'qty' should be stateful
 			if returned_item_row.qty != 0:
@@ -684,12 +684,12 @@ class GrossProfitGenerator:
 			if buying_amount is not None:
 				row.buying_amount = flt(buying_amount, self.currency_precision)
 		elif delivered_bundle:
-			credit = row.copy()
-			credit.qty = row.qty - billed_qty
-			row.buying_amount = flt(
-				row.buying_amount + self.get_buying_amount_from_product_bundle(credit, delivered_bundle),
-				self.currency_precision,
+			# what is still billed, and what credit notes not folded here reversed of it
+			still_billed = row.copy()
+			still_billed.credited_qty = max(
+				flt(self.credited_bundle_qty.get(row.invoice_item)) - (invoiced_qty - row.qty), 0
 			)
+			row.buying_amount = self.get_buying_amount_from_product_bundle(still_billed, delivered_bundle)
 			row.buying_rate = flt(row.buying_amount / row.qty, self.float_precision) if row.qty else 0.0
 		else:
 			row.buying_amount = flt(flt(row.qty) * flt(row.buying_rate), self.currency_precision)
@@ -910,7 +910,10 @@ class GrossProfitGenerator:
 		if flt(row.qty) < 0:
 			return flt(row.qty) * credited_unit
 
-		credited_qty = min(flt(self.credited_bundle_qty.get(row.invoice_item)), flt(row.qty))
+		credited_qty = row.get("credited_qty")
+		if credited_qty is None:
+			credited_qty = self.credited_bundle_qty.get(row.invoice_item)
+		credited_qty = min(flt(credited_qty), flt(row.qty))
 		return (flt(row.qty) - credited_qty) * billed_unit + credited_qty * credited_unit
 
 	def get_component_qty_per_billed_unit(self, packed_item, bundle_row):
@@ -1585,9 +1588,10 @@ class GrossProfitGenerator:
 			bundle_row = self.delivered_bundle_rows[item.dn_detail]
 			if flt(item.stock_qty) >= 0:
 				bundle_row.billed_qty = flt(bundle_row.billed_qty) + flt(item.stock_qty)
-			# a credit note not linked to its invoice row is left out, so it takes back what returns took back first
-			elif item.sales_invoice_item:
-				bundle_row.credited_qty = flt(bundle_row.credited_qty) - flt(item.stock_qty)
+				continue
+
+			bundle_row.credited_qty = flt(bundle_row.credited_qty) - flt(item.stock_qty)
+			if item.sales_invoice_item:
 				self.credited_bundle_qty[item.sales_invoice_item] = flt(
 					self.credited_bundle_qty.get(item.sales_invoice_item)
 				) - flt(item.stock_qty)
