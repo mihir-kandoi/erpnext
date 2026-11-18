@@ -309,6 +309,7 @@ class DeliveryNote(SellingController):
 		self.validate_with_previous_doc()
 		self.set_serial_and_batch_bundle_from_pick_list()
 		make_packing_list(self)
+		self.set_incoming_rate(self.packed_items)
 		self.update_current_stock()
 
 		if not self.installation_status:
